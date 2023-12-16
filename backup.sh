@@ -1,20 +1,15 @@
 #! /bin/bash
 
-
+# Creación del archivo de configuración
 if [ ! -d $HOME/backup ]; then
-
     mkdir $HOME/backup
     touch $HOME/backup/backup.conf
-
 else
-
     if [ ! -f $HOME/backup/backup.conf ]; then
-
-        #Estructura del archivo.- usuario:grupo:número_copias_guardadas:días_para_hacer_copias
+        # Estructura del archivo: 
+        # usuario:grupo:número_copias_guardadas:días_entre_copias
         touch $HOME/backup/backup.conf
-    
     fi
-
 fi
 
 backup=$HOME/backup
