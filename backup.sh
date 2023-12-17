@@ -1,26 +1,67 @@
 #! /bin/bash
 
-# Creación del archivo de configuración
+# Creación del archivo de configuración.
+# Estructura del archivo: 
+# usuario:grupo:número_copias_guardadas:días_entre_copias
 if [ ! -d $HOME/backup ]; then
     mkdir $HOME/backup
     touch $HOME/backup/backup.conf
 else
     if [ ! -f $HOME/backup/backup.conf ]; then
-        # Estructura del archivo: 
-        # usuario:grupo:número_copias_guardadas:días_entre_copias
         touch $HOME/backup/backup.conf
     fi
 fi
 
-backup=$HOME/backup
-salida=0
+# Ruta donde estarán las copias de seguridad.
+BACKUP=$HOME/backup
 
+# Usuarios y grupos del sistema
+USUARIOS=" "
+while IFS=: read etc_nom etc_pas etc_uid etc_gui etc_gru etc_hom
+do
+    if [ $etc_uid -ge 1000 -a $etc_uid -lt 65000 ]; then
+        USUARIOS=$USUARIOS" "$etc_nom
+    fi
+done</etc/passwd
+GRUPOS=" "
+while IFS=: read etc_nom etc_pass etc_gid etc_usu
+do
+    if [ $etc_gid -ge 1000 -a $etc_gid -lt 65000 ]; then
+        GRUPOS=$GRUPOS" "$etc_nom
+    fi
+done</etc/group
+
+# Fecha actual
+FECHA=`date +%d-%m-%y`
+
+# Salida del menú principal.
+SALIDA=0
+
+# Funciones
+crear_copia () {
+    DESTINO=$BACKUP/$usuario/copia_${usuario}_${FECHA}.tar.gz
+    ORIGEN=/home/$usuario
+    sudo tar -czvf "$DESTINO" "$ORIGEN"
+}
+sobreescribir () {
+    zenity --title "La copia con fecha $FECHA para $usuario ya existe" \
+        --width="400" \
+        --question \
+        --text "¿Desea sobreescribirla?"
+}
+directorio () {
+    if [ ! -d $BACKUP/$usuario ]; then
+        mkdir $BACKUP/$usuario
+    fi
+}
+
+# Ejecución manual del script.
 if [ $0 = "$HOME/bin/backup.sh" ]; then
 
-    while [ $salida -eq 0 ] 
+    while [ $SALIDA -eq 0 ] 
     do
-        #Menú principal
-        menu=$(zenity --title "Backup.sh" \
+        # Menú principal
+        MENU=$(zenity --title "Backup.sh" \
             --width="500" \
             --height="500" \
             --list \
@@ -35,16 +76,16 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
             7 "Visualizar grupos que tienen copia de seguridad. " \
             8 "Salir.")
 
-        #Chequear el boton cancelar y X para salir
+        # Chequear el botón cancelar y X para salir.
         if [ $? -eq 1 ]; then
             exit
         fi
 
-        #Submenus
-        case $menu in
+        # Submenus
+        case $MENU in
         1)
-            #Submenu1 para crear copias
-            submenu1=$(zenity --title "Crear copia de seguridad." \
+            # Submenu1 para crear copias.
+            SUBMENU1=$(zenity --title "Crear copia de seguridad." \
                 --width="500" \
                 --height="500" \
                 --list \
@@ -53,54 +94,97 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                 1 "Seleccionar un usuario o varios." \
                 2 "Seleccionar un grupo de usuarios o varios.")
 
-            case $submenu1 in
+            case $SUBMENU1 in
             1)
-                #Selección de usuarios
-                #El comando cat muestra solo los usuarios con 1000 o más de UID
-                list_usuarios=$(zenity --title "Lista de usuarios." \
+                # Selección de usuarios
+                SELECCION=$(zenity --title "Lista de usuarios." \
                     --width="500" \
                     --height="500" \
                     --multiple \
                     --list \
                     --column "Usuarios del sistema" \
-                    `cat /etc/passwd|cut -d":" -f1-3|grep -E ":[1-9][0-9]{3}"|cut -d":" -f1|grep -v nobody`)
+                    `echo $USUARIOS`)
 
-                #Recorro los usuarios seleccionados y hago su copia de seguridad
-                usuarios=$(echo $list_usuarios|tr "|" " ")
-                for user in $usuarios
+                # Recorro los usuarios seleccionados para hacer sus copias de seguridad.
+                SEL_USU=$(echo $SELECCION|tr "|" " ")
+                for usuario in $SEL_USU
                 do
-                    echo $user
+                    # Comprobar que cada usuario tenga su directorio de copias.
+                    directorio
+                    # Comprobar que la copia no existe.
+                    if [ ! -f $BACKUP/$usuario/copia_${usuario}_${FECHA}.tar.gz ]; then
+                        crear_copia
+                    else
+                        sobreescribir
+                        if [ $? -eq 0 ]; then
+                            crear_copia
+                        fi
+                    fi
                 done
             ;;
             2)
-                #Selección de grupos
-                #Uso el mismo comando cat para visualizar los grupos con 1000 o más de GUID
-                list_grupo=$(zenity --title "Lista de grupos." \
+                # Selección de grupos
+                SELECCION=$(zenity --title "Lista de grupos." \
                     --width="500" \
                     --height="500" \
                     --multiple \
                     --list \
                     --column "Grupos del sistema" \
-                    --colu
-                    `cat /etc/group|grep -E ":[1-9][0-9]{3}"|cut -d":" -f1|grep -v nogroup`)
+                    `echo $GRUPOS`)
 
-                #Recorro los grupos seleccionados
-                grupos=$(echo $list_grupo|tr "|" " ")
-                for group in $grupos
+                # Recorro los grupos seleccionados para hacer sus copias de seguridad.
+                SEL_GRU=$(echo $SELECCION|tr "|" " ")
+                for grupo in $SEL_GRU
                 do
-                    #Saco la lista de usuarios perteneciente a cada grupo y los recorro para crear su copia de seguridad
-                    list_usuarios=$(cat /etc/group|grep $group|cut -d":" -f4)
-                    usuarios=$(echo $list_usuarios|tr "," " ")
-                    for user in $usuarios
+                    # Saco la lista de usuarios perteneciente a cada grupo y los recorro para hacer sus copias
+                    while IFS=: read etc_nom etc_pass etc_gid etc_usu
                     do
-                        echo $user
-                    done
+                        if [ "$grupo" = "$etc_nom" ]; then
+                            if [ "$etc_usu" = "" ]; then
+                                SEL_USU=$etc_nom
+                            else
+                                SEL_USU=$(echo $etc_usu|tr "," " ")
+                            fi
+                            for usuario in $SEL_USU
+                            do
+                                directorio
+                                if [ ! -f $BACKUP/$usuario/copia_${usuario}_${FECHA}.tar.gz ]; then
+                                    crear_copia
+                                else
+                                    sobreescribir
+                                    if [ $? -eq 0 ]; then
+                                        crear_copia
+                                    fi
+                                fi
+                            done
+                        fi
+                    done</etc/group
                 done
             ;;
             esac
         ;;
         2)
-            echo "Recuperar copia"
+            SUBMENU2=$(zenity --title "Restaurar copia de seguridad." \
+                --width="500" \
+                --height="500" \
+                --list \
+                --column "Opción" \
+                --column "Menú" \
+                1 "Restaurar copia de un usuario." \
+                2 "Restaurar copia de un grupo." \
+                3 "Restaurar copia de una fecha.")
+
+            case $SUBMENU2 in 
+            1)
+                echo "usuario"
+            ;;
+            2)
+                echo "grupo"
+            ;;
+            3)
+                echo "fecha"
+            ;;
+            esac
         ;;
         3)
             echo "Borrar copia"
@@ -119,7 +203,7 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
         ;;
         8)
             echo "Salir"
-            salida=1
+            SALIDA=1
         ;;
         esac
 
@@ -127,8 +211,13 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
 
 fi
 
+# Ejecución automática del script.
 if [ $0 = "$HOME/bin/autobackup.sh" ]; then
 
     echo "Estoy dentro de .profile."
 
+fi
+
+if [ -f temporal ]; then
+    rm temporal
 fi
