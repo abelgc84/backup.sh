@@ -39,13 +39,20 @@ SALIDA=0
 
 # Funciones
 crear_copia () {
-    DESTINO=$BACKUP/$usuario/copia_${usuario}_${FECHA}.tar.gz
+    mkdir -p $BACKUP/$usuario/copia_${usuario}_${FECHA}
+    DESTINO=$BACKUP/$usuario/copia_${usuario}_${FECHA}/copia_${usuario}_${FECHA}.tar.gz
     ORIGEN=/home/$usuario
-    sudo tar -czvf "$DESTINO" "$ORIGEN"
+    sudo tar -czvf "$DESTINO" "$ORIGEN"|zenity --title "Creando copia de seguridad" \
+        --width="400" \
+        --text="Copia para $usuario" \
+        --progress \
+        --pulsate \
+        --auto-close \
+        --no-cancel
 }
 sobreescribir () {
     zenity --title "La copia con fecha $FECHA para $usuario ya existe" \
-        --width="400" \
+        --width="500" \
         --question \
         --text "¿Desea sobreescribirla?"
 }
@@ -102,17 +109,17 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                     --height="500" \
                     --multiple \
                     --list \
+                    --separator=" " \
                     --column "Usuarios del sistema" \
                     `echo $USUARIOS`)
 
-                # Recorro los usuarios seleccionados para hacer sus copias de seguridad.
-                SEL_USU=$(echo $SELECCION|tr "|" " ")
-                for usuario in $SEL_USU
+                # Recorro los usuarios seleccionados para hacer sus copias.
+                for usuario in $SELECCION
                 do
                     # Comprobar que cada usuario tenga su directorio de copias.
                     directorio
                     # Comprobar que la copia no existe.
-                    if [ ! -f $BACKUP/$usuario/copia_${usuario}_${FECHA}.tar.gz ]; then
+                    if [ ! -d $BACKUP/$usuario/copia_${usuario}_${FECHA} ]; then
                         crear_copia
                     else
                         sobreescribir
@@ -129,12 +136,12 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                     --height="500" \
                     --multiple \
                     --list \
+                    --separator=" " \
                     --column "Grupos del sistema" \
                     `echo $GRUPOS`)
 
                 # Recorro los grupos seleccionados para hacer sus copias de seguridad.
-                SEL_GRU=$(echo $SELECCION|tr "|" " ")
-                for grupo in $SEL_GRU
+                for grupo in $SELECCION
                 do
                     # Saco la lista de usuarios perteneciente a cada grupo y los recorro para hacer sus copias
                     while IFS=: read etc_nom etc_pass etc_gid etc_usu
@@ -148,7 +155,7 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                             for usuario in $SEL_USU
                             do
                                 directorio
-                                if [ ! -f $BACKUP/$usuario/copia_${usuario}_${FECHA}.tar.gz ]; then
+                                if [ ! -d $BACKUP/$usuario/copia_${usuario}_${FECHA} ]; then
                                     crear_copia
                                 else
                                     sobreescribir
