@@ -43,23 +43,36 @@ zen_error () {
 zen_question () {
     zenity --question --text="$question" --width="400"
 }
-# Chequear en zenity el botón cancelar y X para salir.
-zen_salida () {
-    if [ $? -eq 1 ]; then
-        exit
-    fi 
+zen_info () {
+    zenity --info --text="$info" --width="400"
+}
+generar_log () {
+    # Archivo log, estructura: acción:usuario:fecha:copia
+    case $1 in
+    copiar)
+        echo $1":"$usuario":"$FECHA":"$DESTINO>>$BACKUP/.backup.log
+    ;;
+    restaurar)
+        echo $1":"$REST_USU":"$FECHA":"$ORIGEN>>$BACKUP/.backup.log
+    ;;
+    borrar)
+    ;;
+    *)
+        echo "### Error al generar log ###">>$BACKUP/.backup.log
+    esac
 }
 crear_copia () {
     mkdir -p $BACKUP/$usuario/copia_${usuario}_${FECHA}
     DESTINO=$BACKUP/$usuario/copia_${usuario}_${FECHA}/copia_${usuario}_${FECHA}.tar.gz
     ORIGEN=/home/$usuario
-    sudo tar -czvf "$DESTINO" "$ORIGEN"|zenity --title "Creando copia de seguridad" \
+    sudo tar -czf "$DESTINO" "$ORIGEN"|zenity --title "Creando copia de seguridad." \
         --width="400" \
         --text="Copia para $usuario" \
         --progress \
         --pulsate \
         --auto-close \
         --no-cancel
+    generar_log copiar
 }
 sobreescribir () {
     zenity --title "La copia con fecha $FECHA para $usuario ya existe" \
@@ -72,6 +85,29 @@ directorio () {
         mkdir $BACKUP/$usuario
     fi
 }
+restaurar_copia () {
+    # Descomprimo el fichero tar.
+    ORIGEN=$BACKUP/$REST_USU/$REST_COP/$REST_COP.tar.gz
+    sudo tar -xf $ORIGEN -C $REST_RUT|zenity --title "Restaurando copia de seguridad." \
+        --width="400" \
+        --text="Restaurando $REST_COP" \
+        --progress \
+        --pulsate \
+        --auto-close \
+        --no-cancel
+    generar_log restaurar
+}
+devolver_propiedad () {
+    # Devuelvo la propiedad de los archivos descomprimidos al usuario o grupo.
+    case $1 in
+    usuario)
+        sudo chown -R $REST_USU:$REST_USU $REST_RUT
+    ;;
+    grupo)
+        sudo chown -R $REST_USU:$REST_GRU $REST_RUT
+    ;;
+    esac
+}
 
 
 # Ejecución manual del script.
@@ -79,7 +115,7 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
 
     while [ $SALIDA -eq 0 ] 
     do
-        # Menú principal
+        # Menú principal.
         MENU=$(zenity --title "Backup.sh" \
             --width="500" \
             --height="500" \
@@ -87,17 +123,19 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
             --column "Opción" \
             --column "Menú" \
             1 "Crear copia de seguridad." \
-            2 "Recuperar copia de seguridad." \
+            2 "Restaurar copia de seguridad." \
             3 "Borrar copia de seguridad." \
-            4 "Programar copias de seguridad automáticas." \
-            5 "Modificar la configuración de las copias automáticas." \
-            6 "Visualizar usuarios que tienen copia de seguridad." \
-            7 "Visualizar grupos que tienen copia de seguridad. " \
-            8 "Salir.")
+            4 "Configurar copia de seguridad automática." \
+            5 "Visualizar usuarios que tienen copia de seguridad." \
+            6 "Visualizar grupos que tienen copia de seguridad. " \
+            7 "Salir.")
 
-        zen_salida
+        # Chequear el botón cancelar y X para salir.
+        if [ $? -eq 1 ]; then
+            exit
+        fi 
 
-        # Submenus
+        # Submenus.
         case $MENU in
         1)
             # Submenu1 para crear copias.
@@ -112,7 +150,7 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
 
             case $SUBMENU1 in
             1)
-                # Selección de usuarios
+                # Selección de usuarios.
                 SELECCION=$(zenity --title "Lista de usuarios." \
                     --width="500" \
                     --height="500" \
@@ -139,7 +177,7 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                 done
             ;;
             2)
-                # Selección de grupos
+                # Selección de grupos.
                 SELECCION=$(zenity --title "Lista de grupos." \
                     --width="500" \
                     --height="500" \
@@ -213,16 +251,20 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                     do
                         echo $archivo|cut -d"/" -f6
                     done`)
-                SALIDA_RUTA=0
-                while [ $SALIDA_RUTA -eq 0 ]
+
+                SALIDA_RUT=0
+                while [ $SALIDA_RUT -eq 0 ]
                 do
-                    zen_salida
                     
                     REST_RUT=$(zenity --title "Restaurar copia de seguridad de un usuario." \
                         --width="500" \
                         --forms \
                         --text="Introduce la ruta absoluta." \
                         --add-entry="Ruta")
+                    
+                    if [ $? -eq 1 ]; then
+                        break
+                    fi 
 
                     # Verifico que la ruta de destino sea absoluta.
                     if [ `echo $REST_RUT|cut -c1` != "/" ]; then
@@ -235,22 +277,105 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                             zen_question
                             if [ $? -eq 0 ]; then
                                 sudo mkdir -p $REST_RUT
-                                echo "descomprimo"
-                                # Devuelvo la propiedad al usuario
-                                SALIDA_RUTA=1
+                                if [ $? -eq 0 ]; then
+                                    restaurar_copia
+                                    devolver_propiedad usuario
+                                fi
+                                SALIDA_RUT=1
                             else
                                 question="¿Quiere introducir otra ruta?"
                                 zen_question
                                 if [ $? -eq 1 ]; then
-                                    SALIDA_RUTA=1
+                                    SALIDA_RUT=1
                                 fi
                             fi
+                        else
+                            restaurar_copia
+                            devolver_propiedad usuario
+                            SALIDA_RUT=1
                         fi
                     fi
                 done
             ;;
             2)
-                echo "grupo"
+                # Pido el grupo.
+                REST_GRU=$(zenity --title "Restaurar copia de seguridad de un grupo." \
+                    --width="500" \
+                    --height="500" \
+                    --list \
+                    --column "Grupo" \
+                    `echo $GRUPOS`)
+                # Saco la lista de usuarios perteneciente al grupo.
+                while IFS=: read etc_nom etc_pass etc_gid etc_usu
+                do
+                    if [ "$REST_GRU" = "$etc_nom" ]; then
+                        if [ "$etc_usu" = "" ]; then
+                            USU_GRU=$etc_nom
+                        else
+                            USU_GRU=$(echo $etc_usu|tr "," " ")
+                        fi
+                        # Recorro los usuarios para restaurar sus copias.
+                        for REST_USU in $USU_GRU
+                        do
+                            info=`echo "Restaurando copia para" $REST_USU". Seleccione la copia."`
+                            zen_info
+                            REST_COP=$(zenity --title "Restaurar copia de seguridad de un usuario." \
+                                --width="500" \
+                                --height="500" \
+                                --list \
+                                --column "Copias almacenadas." \
+                                `for archivo in $HOME/backup/$REST_USU/*
+                                do
+                                    echo $archivo|cut -d"/" -f6
+                                done`)
+
+                            SALIDA_RUT=0
+                            while [ $SALIDA_RUT -eq 0 ]
+                            do
+                    
+                                REST_RUT=$(zenity --title "Restaurar copia de seguridad de un usuario." \
+                                    --width="500" \
+                                    --forms \
+                                    --text="Introduce la ruta absoluta." \
+                                    --add-entry="Ruta")
+                    
+                                if [ $? -eq 1 ]; then
+                                    break
+                                fi 
+
+                                # Verifico que la ruta de destino sea absoluta.
+                                if [ `echo $REST_RUT|cut -c1` != "/" ]; then
+                                    error="La ruta introducida no es absoluta."
+                                    zen_error
+                                else
+                                    # Compruebo que el directorio de destino exista.
+                                    if [ ! -d $REST_RUT ]; then
+                                        question="La ruta elegida no existe. ¿Desea crearla?"
+                                        zen_question
+                                        if [ $? -eq 0 ]; then
+                                            sudo mkdir -p $REST_RUT
+                                            if [ $? -eq 0 ]; then
+                                                restaurar_copia
+                                                devolver_propiedad grupo
+                                            fi
+                                            SALIDA_RUT=1
+                                        else
+                                            question="¿Quiere introducir otra ruta?"
+                                            zen_question
+                                            if [ $? -eq 1 ]; then
+                                                SALIDA_RUT=1
+                                            fi
+                                        fi
+                                    else
+                                        restaurar_copia
+                                        devolver_propiedad grupo
+                                        SALIDA_RUT=1
+                                    fi
+                                fi
+                            done                              
+                        done
+                    fi
+                done</etc/group 
             ;;
             3)
                 echo "fecha"
@@ -261,18 +386,15 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
             echo "Borrar copia"
         ;;
         4)
-            echo "Programar copias"
+            echo "Configurar copia de seguridad automática."
         ;;
         5)
-            echo "Modificar configuración"
-        ;;
-        6)
             echo "Visualizar usuarios"
         ;;
-        7)
+        6)
             echo "Visualizar grupos"
         ;;
-        8)
+        7)
             echo "Salir"
             SALIDA=1
         ;;
