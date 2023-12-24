@@ -113,6 +113,7 @@ generar_log () {
         echo $1":"$REST_USU":"$FECHA":"$ORIGEN>>$BACKUP/.backup.log
     ;;
     borrar)
+        echo $1":"$USER":"$FECHA":"$BACKUP/$usuario/$BORR_COP/$BORR_COP.tar.gz>>$BACKUP/.backup.log
     ;;
     esac
 }
@@ -177,6 +178,10 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
             4 "Visualizar copias de seguridad." \
             5 "Congigurar ejecución automática." \
             6 "Salir.")
+
+# Pendiente por hacer para todo zenity.
+# Comprobar botones de aceptar para no continuar la ejecución si no se ha pulsado aceptar.
+# Comprobar cadenas vacias, para no continuar la ejecución si no se ha seleccionado nada. 
 
         # Chequear el botón cancelar y X para salir.
         if [ $? -eq 1 ]; then
@@ -277,16 +282,14 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                     do
                         echo $usuario|cut -d"/" -f5
                     done`)
-# Comprobar el boton de aceptar
-# Comprobar cadenas vacias
+
                 REST_COP=$(menu_selec "Restaurar copia de seguridad de $REST_USU." \
                     "Copias almacenadas." \
                     `for archivo in $BACKUP/$REST_USU/*
                     do
                         echo $archivo|cut -d"/" -f6
                     done`)
-# Comprobar el botón de aceptar
-# Comprobar cadenas vacias
+
                 # Bucle para pedir la ruta.
                 SALIDA_RUT=0
                 while [ $SALIDA_RUT -eq 0 ]
@@ -364,8 +367,7 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                                 do 
                                     echo $archivo|cut -d"/" -f6
                                 done`)
-# Comprobar botones de aceptar
-# Comprobar cadenas vacias 
+
                             # Bucle para pedir la ruta.
                             SALIDA_RUT=0
                             while [ $SALIDA_RUT -eq 0 ]
@@ -422,8 +424,7 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                 # Pido la fecha y le doy mi formato.
                 REST_FEC=$(zen_calendar "Restaurar copia de seguridad.")
                 REST_FEC=`echo $REST_FEC|tr "/" "-"`
-# Comprobar botón de aceptar
-# Comprobar cadenas vacias 
+ 
                 # Recorro las carpetas de almacenamiento de cada usuario.
                 for usuario in $BACKUP/*
                 do
@@ -498,14 +499,15 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
             esac
         ;;
         3)
-            # Submenu3 para borrar copias de seguridad
+            # Submenu3 para borrar copias de seguridad.
             SUBMENU3=$(mostrar_menu "Borrar copia de seguridad." \
                 1 "Borrar copia de seguridad de uno o varios usuarios." \
-                2 "Borrar copia de seguridad de un grupo." \
-                3 "Borrar copia de segudidad de una fecha.")
+                2 "Borrar copia de seguridad de uno o varios grupos." \
+                3 "Borrar copia de seguridad de una fecha.")
             
             case $SUBMENU3 in
             1)
+                # Borrar copia de seguridad de uno o varios usuarios.
                 # Muestro los usuarios con copias.
                 SELECCION=$(menu_selec_multi "Usuarios con copias almacenadas." \
                     "Usuarios." \
@@ -513,18 +515,145 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                     do
                         echo $usuario|cut -d"/" -f5
                     done`)
-                echo $SELECCION
+                
+                # Recorro los usuarios seleccionados
+                for usuario in $SELECCION
+                do
+                    # Pido las copias que se quieran borrar.
+                    SEL_COP=$(menu_selec_multi "Copias almacenadas para $usuario." \
+                    "Copias." \
+                    `for copia in $BACKUP/$usuario/*
+                    do
+                        echo $copia|cut -d"/" -f6
+                    done`)
+                    # Recorro las copias para borrarlas.
+                    for BORR_COP in $SEL_COP
+                    do
+                        question="¿Esta seguro que quiere borrar $BORR_COP?"
+                        zen_question
+                        if [ $? -eq 0 ]; then
+                            sudo rm -r $BACKUP/$usuario/$BORR_COP
+                            generar_log borrar
+                            notification=`echo "Copia" $BORR_COP "borrada."`
+                            zen_notification
+                        fi
+                    done
+                done
             ;;
             2)
-                echo "borrar de grupo"
+                # Borrar copia de seguridad de uno o varios grupos.
+                # Muestro los grupos.
+                SELECCION=$(menu_selec_multi "Grupos del sistema." \
+                "Grupos." \
+                `echo $GRUPOS`)
+
+                # Recorro los grupos seleccionados.
+                for grupo in $SELECCION
+                do
+                    # Saco la lista de usuarios perteneciente a cada grupo y los recorro para borrar las copias.
+                    while IFS=: read etc_nom etc_pass etc_gid etc_usu
+                    do
+                        if [ "$grupo" = "$etc_nom" ]; then
+                            # Si el grupo no tiene usuarios, el usuario tendrá el nombre del grupo.
+                            if [ "$etc_usu" = "" ]; then
+                                SEL_USU=$etc_nom
+                            else
+                                SEL_USU=$(echo $etc_usu|tr "," " ")
+                            fi
+                            for usuario in $SEL_USU
+                            do
+                                # Compruebo que el usuario tenga copias almacenadas.
+                                cop_alm=`ls $BACKUP/$usuario/|wc -l`
+                                if [ $cop_alm -gt 0 ]; then
+                                    # Pido las copias que se quieran borrar.
+                                    SEL_COP=$(menu_selec_multi "Copias almacenadas para $usuario." \
+                                    "Copias." \
+                                    `for copia in $BACKUP/$usuario/*
+                                    do
+                                       echo $copia|cut -d"/" -f6
+                                    done`)
+                                    # Recorro las copias para borrarlas.
+                                    for BORR_COP in $SEL_COP
+                                    do
+                                        question="¿Esta seguro que quiere borrar $BORR_COP?"
+                                        zen_question
+                                        if [ $? -eq 0 ]; then
+                                            sudo rm -r $BACKUP/$usuario/$BORR_COP
+                                            generar_log borrar
+                                            notification=`echo "Copia" $BORR_COP "borrada."`
+                                            zen_notification
+                                        fi
+                                    done
+                                else
+                                    notification=`echo -e "El usuario" $usuario "del grupo" $grupo "\nno tiene ninguna copia almacenada."`
+                                    zen_notification
+                                fi
+                            done
+                        fi
+                    done</etc/group
+                done
             ;;
             3)
-                echo "borrar de fecha"
+                # Borrar copia de seguridad de una fecha.
+                # Pido la fecha y le doy mi formato.
+                BORR_FEC=$(zen_calendar "Restaurar copia de seguridad.")
+                BORR_FEC=`echo $BORR_FEC|tr "/" "-"`
+
+                # Recorro las carpetas de almacenamiento de cada usuario.
+                for usuario in $BACKUP/*
+                do
+                    # Busco para cada usuario una copia con la fecha seleccionada y la borro.
+                    for BORR_COP in $usuario/*
+                    do
+                        if [ `echo $BORR_COP|grep $BORR_FEC` ]; then
+                            question="¿Esta seguro que quiere borrar `echo $BORR_COP|cut -d"/" -f6`?"
+                            zen_question
+                            if [ $? -eq 0 ]; then
+                                sudo rm -r $BORR_COP
+                                generar_log borrar
+                                notificacion="Copia `echo $BORR_COP|grep $BORR_FEC` borrada."
+                                zen_notification
+                            fi
+                        fi
+                    done
+                done
             ;;
             esac
         ;;
         4)
-            echo "Visualizar copias"
+            # Submenu4 para visualizar copias.
+            SUBMENU4=$(mostrar_menu "Visualizar copias de seguridad." \
+                1 "Visualizar copias de un usuario." \
+                2 "Visualizar copias de un grupo." \
+                3 "Visualizar todas las copias.")
+
+            case $SUBMENU4 in 
+            1)
+                # Visualizar copias de un usuario.
+                # Muestro los usuarios con copias.
+                SEL_USU=$(menu_selec "Usuarios con copias almacenadas." \
+                    "Usuario." \
+                    `for usuario in $BACKUP/*
+                    do
+                        echo $usuario|cut -d"/" -f5
+                    done`)
+                # Muestro las copias del usuario seleccionado.
+                menu_selec "Copias de $SEL_USU." \
+                    "Copias." \
+                    `for copias in $BACKUP/$SEL_USU/*
+                    do 
+                        echo $copias|cut -d"/" -f6
+                    done`
+            ;;
+            2)
+                # Visualizar copias de un grupo.
+                echo "grupo"
+            ;;
+            3)
+                # Visualizar todas las copias.
+                echo "todas."
+            ;;
+            esac
         ;;
         5)
             echo "Configuración automática"
