@@ -42,32 +42,36 @@ SALIDA=0
 mostrar_menu () {
     titulo="$1"
     shift
+    columna1="$1"
+    shift
+    columna2="$1"
+    shift
     zenity --title "$titulo" \
            --width="500" \
            --height="500" \
            --list \
-           --column "Opción" \
-           --column "Menú" \
+           --column "$columna1" \
+           --column "$columna2" \
            "$@"
 }
 # Menú estándar de selección.
 menu_selec () {
     titulo="$1"
     shift
-    columna="$1"
+    columna1="$1"
     shift
     zenity --title "$titulo" \
         --width="500" \
         --height="500" \
         --list \
-        --column "$columna" \
+        --column "$columna1" \
         "$@"
 }
 # Menú estándar de selección múltiple.
 menu_selec_multi () {
     titulo="$1"
     shift
-    columna="$1"
+    columna1="$1"
     shift
     zenity --title "$titulo" \
         --width="500" \
@@ -75,7 +79,7 @@ menu_selec_multi () {
         --multiple \
         --list \
         --separator=" " \
-        --column "$columna" \
+        --column "$columna1" \
         "$@"
 }
 zen_forms () {
@@ -104,7 +108,7 @@ zen_notification () {
     zenity --notification --text="$notification"
 }
 generar_log () {
-    # Archivo log, estructura: acción:usuario:fecha:copia
+    # Estructura del archivo log: acción:usuario:fecha:ruta_copia
     case $1 in
     copiar)
         echo $1":"$usuario":"$FECHA":"$DESTINO>>$BACKUP/.backup.log
@@ -171,7 +175,7 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
     while [ $SALIDA -eq 0 ] 
     do
         # Menú principal.
-        MENU=$(mostrar_menu "Backup.sh" \
+        MENU=$(mostrar_menu "Backup.sh" "Opción" "Menú" \
             1 "Crear copia de seguridad." \
             2 "Restaurar copia de seguridad." \
             3 "Borrar copia de seguridad." \
@@ -192,15 +196,14 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
         case $MENU in
         1)
             # Submenu1 para crear copias.
-            SUBMENU1=$(mostrar_menu "Crear copia de seguridad." \
+            SUBMENU1=$(mostrar_menu "Crear copia de seguridad" "Opción" "Menú" \
                 1 "Seleccionar un usuario o varios." \
                 2 "Seleccionar un grupo de usuarios o varios.")
 
             case $SUBMENU1 in
             1)
                 # Seleccionar un usuario o varios.
-                SELECCION=$(menu_selec_multi "Lista de usuarios." \
-                    "Usuarios del sistema." \
+                SELECCION=$(menu_selec_multi "Lista de usuarios" "Usuarios del sistema" \
                     `echo $USUARIOS`)
 
                 # Recorro los usuarios seleccionados para hacer sus copias.
@@ -225,8 +228,7 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
             ;;
             2)
                 # Seleccionar un grupo de usuarios o varios.
-                SELECCION=$(menu_selec_multi "Lista de grupos." \
-                    "Grupos del sistema." \
+                SELECCION=$(menu_selec_multi "Lista de grupos" "Grupos del sistema" \
                     `echo $GRUPOS`)
 
                 # Recorro los grupos seleccionados.
@@ -268,7 +270,7 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
         ;;
         2)
             # Submenu2 para restaurar copias.
-            SUBMENU2=$(mostrar_menu "Restaurar copia de seguridad." \
+            SUBMENU2=$(mostrar_menu "Restaurar copia de seguridad" "Opción" "Menú" \
                 1 "Restaurar copia de un usuario." \
                 2 "Restaurar copia de un grupo." \
                 3 "Restaurar copia de una fecha.")
@@ -276,15 +278,13 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
             case $SUBMENU2 in 
             1)
                 # Restaurar copia de un usuario.
-                REST_USU=$(menu_selec "Restaurar copia de seguridad de un usuario." \
-                    "Nombre de usuario." \
+                REST_USU=$(menu_selec "Restaurar copia de seguridad de un usuario" "Nombre de usuario" \
                     `for usuario in $BACKUP/*
                     do
                         echo $usuario|cut -d"/" -f5
                     done`)
 
-                REST_COP=$(menu_selec "Restaurar copia de seguridad de $REST_USU." \
-                    "Copias almacenadas." \
+                REST_COP=$(menu_selec "Restaurar copia de seguridad de $REST_USU" "Copias almacenadas" \
                     `for archivo in $BACKUP/$REST_USU/*
                     do
                         echo $archivo|cut -d"/" -f6
@@ -294,10 +294,7 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                 SALIDA_RUT=0
                 while [ $SALIDA_RUT -eq 0 ]
                 do
-                    
-                    REST_RUT=$(zen_forms "Restaurar copia de seguridad de $REST_USU." \
-                        "Introduce la ruta absoluta." \
-                        "Ruta")
+                    REST_RUT=$(zen_forms "Restaurar copia de seguridad de $REST_USU" "Introduce la ruta absoluta." "Ruta")
                     
                     # Chequear el botón cancelar y X 
                     if [ $? -eq 1 ]; then
@@ -341,8 +338,7 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
             ;;
             2)
                 # Restaurar copia de un grupo.
-                REST_GRU=$(menu_selec "Restaurar copia de seguridad de un grupo." \
-                    "Grupo" \
+                REST_GRU=$(menu_selec "Restaurar copia de seguridad de un grupo" "Grupo" \
                     `echo $GRUPOS`)
 
                 # Saco la lista de usuarios perteneciente al grupo.
@@ -361,8 +357,7 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                             # Pido la copia que se quiere restarurar.
                             info=`echo "Restaurando copia para" $REST_USU". Seleccione la copia."`
                             zen_info
-                            REST_COP=$(menu_selec "Restaurar copia de seguridad de $REST_USU." \
-                                "Copias almacenadas." \
+                            REST_COP=$(menu_selec "Restaurar copia de seguridad de $REST_USU" "Copias almacenadas" \
                                 `for archivo in $BACKUP/$REST_USU/*
                                 do 
                                     echo $archivo|cut -d"/" -f6
@@ -372,10 +367,7 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                             SALIDA_RUT=0
                             while [ $SALIDA_RUT -eq 0 ]
                             do
-                    
-                                REST_RUT=$(zen_forms "Restaurar copia de seguridad de $REST_USU." \
-                                    "Introduce la ruta absoluta." \
-                                    "Ruta")
+                                REST_RUT=$(zen_forms "Restaurar copia de seguridad de $REST_USU" "Introduce la ruta absoluta." "Ruta")
                     
                                 if [ $? -eq 1 ]; then
                                     break
@@ -422,7 +414,7 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
             3)
                 # Restaurar copia de una fecha.
                 # Pido la fecha y le doy mi formato.
-                REST_FEC=$(zen_calendar "Restaurar copia de seguridad.")
+                REST_FEC=$(zen_calendar "Restaurar copia de seguridad")
                 REST_FEC=`echo $REST_FEC|tr "/" "-"`
  
                 # Recorro las carpetas de almacenamiento de cada usuario.
@@ -437,8 +429,7 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                 done
 
                 # Muestro las copias para elegir cuáles se quieren restaurar
-                SELECCION=$(menu_selec_multi "Restaurar copia de seguridad." \
-                    "Copia." \
+                SELECCION=$(menu_selec_multi "Restaurar copia de seguridad" "Copia" \
                     `echo $lista`)
 
                 # Restauro las copias seleccionadas.
@@ -450,10 +441,7 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                     SALIDA_RUT=0
                     while [ $SALIDA_RUT -eq 0 ]
                     do
-                    
-                        REST_RUT=$(zen_forms "Restaurar copia de seguridad de $REST_USU." \
-                            "Introduce la ruta absoluta." \
-                            "Ruta")
+                        REST_RUT=$(zen_forms "Restaurar copia de seguridad de $REST_USU" "Introduce la ruta absoluta." "Ruta")
                     
                         # Chequear el botón cancelar y X 
                         if [ $? -eq 1 ]; then
@@ -500,7 +488,7 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
         ;;
         3)
             # Submenu3 para borrar copias de seguridad.
-            SUBMENU3=$(mostrar_menu "Borrar copia de seguridad." \
+            SUBMENU3=$(mostrar_menu "Borrar copia de seguridad" "Opción" "Menú" \
                 1 "Borrar copia de seguridad de uno o varios usuarios." \
                 2 "Borrar copia de seguridad de uno o varios grupos." \
                 3 "Borrar copia de seguridad de una fecha.")
@@ -509,8 +497,7 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
             1)
                 # Borrar copia de seguridad de uno o varios usuarios.
                 # Muestro los usuarios con copias.
-                SELECCION=$(menu_selec_multi "Usuarios con copias almacenadas." \
-                    "Usuarios." \
+                SELECCION=$(menu_selec_multi "Usuarios con copias almacenadas" "Usuarios" \
                     `for usuario in $BACKUP/*
                     do
                         echo $usuario|cut -d"/" -f5
@@ -520,8 +507,7 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                 for usuario in $SELECCION
                 do
                     # Pido las copias que se quieran borrar.
-                    SEL_COP=$(menu_selec_multi "Copias almacenadas para $usuario." \
-                    "Copias." \
+                    SEL_COP=$(menu_selec_multi "Copias almacenadas para $usuario" "Copias" \
                     `for copia in $BACKUP/$usuario/*
                     do
                         echo $copia|cut -d"/" -f6
@@ -543,8 +529,7 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
             2)
                 # Borrar copia de seguridad de uno o varios grupos.
                 # Muestro los grupos.
-                SELECCION=$(menu_selec_multi "Grupos del sistema." \
-                "Grupos." \
+                SELECCION=$(menu_selec_multi "Grupos del sistema" "Grupos" \
                 `echo $GRUPOS`)
 
                 # Recorro los grupos seleccionados.
@@ -566,8 +551,7 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                                 cop_alm=`ls $BACKUP/$usuario/|wc -l`
                                 if [ $cop_alm -gt 0 ]; then
                                     # Pido las copias que se quieran borrar.
-                                    SEL_COP=$(menu_selec_multi "Copias almacenadas para $usuario." \
-                                    "Copias." \
+                                    SEL_COP=$(menu_selec_multi "Copias almacenadas para $usuario" "Copias" \
                                     `for copia in $BACKUP/$usuario/*
                                     do
                                        echo $copia|cut -d"/" -f6
@@ -622,32 +606,66 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
         ;;
         4)
             # Submenu4 para visualizar copias.
-            SUBMENU4=$(mostrar_menu "Visualizar copias de seguridad." \
-                1 "Visualizar copias de un usuario." \
-                2 "Visualizar copias de un grupo." \
+            SUBMENU4=$(mostrar_menu "Visualizar copias de seguridad" "Opción" "Menú" \
+                1 "Visualizar copias de uno o varios usuarios." \
+                2 "Visualizar copias de uno o varios grupos." \
                 3 "Visualizar todas las copias.")
 
             case $SUBMENU4 in 
             1)
-                # Visualizar copias de un usuario.
+                # Visualizar copias usuarios.
                 # Muestro los usuarios con copias.
-                SEL_USU=$(menu_selec "Usuarios con copias almacenadas." \
-                    "Usuario." \
+                SEL_USU=$(menu_selec_multi "Usuarios con copias almacenadas" "Usuario" \
                     `for usuario in $BACKUP/*
                     do
                         echo $usuario|cut -d"/" -f5
                     done`)
-                # Muestro las copias del usuario seleccionado.
-                menu_selec "Copias de $SEL_USU." \
-                    "Copias." \
-                    `for copias in $BACKUP/$SEL_USU/*
-                    do 
-                        echo $copias|cut -d"/" -f6
-                    done`
+
+                # Recorro cada usuario seleccionado y sus copias para mostrarlas.
+                mostrar_menu "Visualizar copias de uno o varios usuarios" "Usuario" "Copia" \
+                    `echo $SEL_USU|tr " " "\n"|while read -r usuario
+                    do
+                        for copia in $BACKUP/$usuario/*
+                        do
+                            echo $usuario 
+                            echo $copia|cut -d"/" -f6
+                        done
+                    done` 
             ;;
             2)
-                # Visualizar copias de un grupo.
-                echo "grupo"
+                # Visualizar copias grupos.
+                # Muestro los grupos del sistema.
+                SEL_GRU=$(menu_selec_multi "Grupos del sistema" "Grupo" \
+                `echo $GRUPOS`)
+
+                SEL_USU=""
+                # Saco la lista de usuarios de los grupos seleccionados.
+                while IFS=: read etc_nom etc_pass etc_gid etc_usu
+                do
+                    if [ "$SEL_GRU" = "$etc_nom" ]; then
+                        if [ "$etc_usu" = "" ]; then
+                            SEL_USU="$SEL_USU $etc_nom"
+                        else
+                            SEL_USU="$SEL_USU $(echo $etc_usu|tr "," " ")"
+                        fi
+                    fi
+                done</etc/group
+
+                echo $SEL_USU
+
+                # Recorro los usuarios y muestro sus copias.
+                mostrar_menu "Visualizar copias de uno o varios grupos" "Usuario" "Copia" \
+                `echo $SEL_USU|tr " " "\n"|while read -r usuario
+                do
+                    for copia in $BACKUP/$usuario/*
+                    do
+                        #if [ -d $copia ]; then 
+                            echo $usuario
+                            echo $copia|cut -d"/" -f6
+                        #fi
+                    done
+                done` 
+
             ;;
             3)
                 # Visualizar todas las copias.
