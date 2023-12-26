@@ -1,14 +1,8 @@
 #! /bin/bash
 
-# Creación del archivo de configuración.
-# Estructura del archivo: usuario:grupo:número_copias_guardadas:días_entre_copias
+# Creación de la carpeta de almacenamiento.
 if [ ! -d $HOME/backup ]; then
     mkdir $HOME/backup
-    touch $HOME/backup/.backup.conf
-else
-    if [ ! -f $HOME/backup/.backup.conf ]; then
-        touch $HOME/backup/.backup.conf
-    fi
 fi
 
 # Ruta donde estarán las copias de seguridad.
@@ -35,8 +29,6 @@ FECHA=`date +%d-%m-%y`
 
 # Salida del menú principal.
 SALIDA=0
-
-# Funciones.
 
 # Menú estándar de dos columnas.
 mostrar_menu () {
@@ -81,6 +73,15 @@ menu_selec_multi () {
         --separator=" " \
         --column "$columna1" \
         "$@"
+}
+menu_confi () {
+    zenity --title "$1" \
+        --width="500" \
+        --forms \
+        --separator=":" \
+        --text="Introduzca los datos para $SEL_USU:$SEL_GRU" \
+        --add-entry="Nº copias guardadas" \
+        --add-entry="Días entre copias"
 }
 zen_forms () {
     zenity --title "$1" \
@@ -180,7 +181,7 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
             2 "Restaurar copia de seguridad." \
             3 "Borrar copia de seguridad." \
             4 "Visualizar copias de seguridad." \
-            5 "Congigurar ejecución automática." \
+            5 "Configurar ejecución automática." \
             6 "Salir.")
 
 # Pendiente por hacer para todo zenity.
@@ -609,7 +610,7 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
             SUBMENU4=$(mostrar_menu "Visualizar copias de seguridad" "Opción" "Menú" \
                 1 "Visualizar copias de uno o varios usuarios." \
                 2 "Visualizar copias de uno o varios grupos." \
-                3 "Visualizar todas las copias.")
+                3 "Visualizar copias de una fecha.")
 
             case $SUBMENU4 in 
             1)
@@ -638,20 +639,26 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                 SEL_GRU=$(menu_selec_multi "Grupos del sistema" "Grupo" \
                 `echo $GRUPOS`)
 
+#### A REVISAR. Puede que pase lo mismo en otras partes, vaciar la variable por si arrastra algo almacenado
                 SEL_USU=""
                 # Saco la lista de usuarios de los grupos seleccionados.
-                while IFS=: read etc_nom etc_pass etc_gid etc_usu
+                for grupo in $SEL_GRU
                 do
-                    if [ "$SEL_GRU" = "$etc_nom" ]; then
-                        if [ "$etc_usu" = "" ]; then
-                            SEL_USU="$SEL_USU $etc_nom"
-                        else
-                            SEL_USU="$SEL_USU $(echo $etc_usu|tr "," " ")"
+                    while IFS=: read etc_nom etc_pass etc_gid etc_usu
+                    do
+                        if [ "$grupo" = "$etc_nom" ]; then
+                            if [ "$etc_usu" = "" ]; then
+                                SEL_USU=$etc_nom
+                            else
+                                TEMP=$(echo $etc_usu|tr "," " ")
+                                for usuario in $TEMP
+                                do
+                                    SEL_USU="$SEL_USU $usuario"
+                                done
+                            fi
                         fi
-                    fi
-                done</etc/group
-
-                echo $SEL_USU
+                    done</etc/group
+                done
 
                 # Recorro los usuarios y muestro sus copias.
                 mostrar_menu "Visualizar copias de uno o varios grupos" "Usuario" "Copia" \
@@ -659,37 +666,138 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                 do
                     for copia in $BACKUP/$usuario/*
                     do
-                        #if [ -d $copia ]; then 
+                        # Compruebo si tiene copias el usuario
+                        if [ -d $copia ]; then 
                             echo $usuario
                             echo $copia|cut -d"/" -f6
-                        #fi
+                        fi
                     done
                 done` 
 
             ;;
             3)
-                # Visualizar todas las copias.
-                echo "todas."
+                # Visualizar copias de una fecha.
+                VISU_FEC=$(zen_calendar "Visualizar copias de seguridad.")
+                VISU_FEC=`echo $VISU_FEC|tr "/" "-"`
+
+                # Muestro los usuarios y sus copias con la fecha seleccionada.
+                mostrar_menu "Copias con fecha $VISU_FEC" "Usuarios" "Copias" \
+                `for usuario in $BACKUP/*
+                do
+                    ls $usuario|grep $VISU_FEC|cut -d"_" -f2
+                    ls $usuario|grep $VISU_FEC
+                done`
             ;;
             esac
         ;;
         5)
-            echo "Configuración automática"
+            # Congigurar ejecución automática.
+
+            # Creación del archivo de configuración.
+            # Estructura del archivo: usuario:grupo:número_copias_guardadas:días_entre_copias
+            if [ ! -f $BACKUP/.backup.conf ]; then
+                touch $BACKUP/.backup.conf
+            fi
+
+            # Creación del enlace que ejecutará la parte automática.
+            if [ ! -f $HOME/bin/autobackup.sh ]; then
+                ln -s $HOME/bin/backup.sh $HOME/bin/autobackup.sh
+            fi
+            cat $HOME/.profile|grep autobackup.sh>temporal
+            if [ $? -eq 1 ]; then
+                echo "/home/abel/bin/autobackup.sh">>$HOME/.profile
+            fi
+
+            SUBMENU5=$(mostrar_menu "Configurar ejecución automática" "Opción" "Menú" \
+            1 "Visualizar configuraciones existentes." \
+            2 "Crear configuración para uno o varios usuarios." \
+            3 "Crear configuración para uno o varios grupos." \
+            4 "Modificar configuración para uno o varios usuarios." \
+            5 "Modificar configuración para uno o varios grupos." \
+            6 "Borrar consiguraciones.")
+
+            case $SUBMENU5 in
+            1)
+                # Visualizar configuraciones existentes.
+                zenity --title "Configuraciones existentes" \
+                    --width="500" \
+                    --height="500" \
+                    --list \
+                    --column "Usuario" \
+                    --column "Grupo" \
+                    --column "Nº Copias" \
+                    --column "Nº Días" \
+                    `while IFS=: read SEL_USU SEL_GRU NUM_COP DIAS_COP
+                    do
+                        echo $SEL_USU
+                        echo $SEL_GRU
+                        echo $NUM_COP
+                        echo $DIAS_COP
+                    done<$BACKUP/.backup.conf`
+            ;;
+            2)
+                # Crear configuración para uno o varios usuarios.
+                # Pido los usuarios.
+                SELECCION=$(menu_selec_multi "Crear configuración para uno o varios usuarios" "Usuario" \
+                    `echo $USUARIOS`)
+                
+                # Recorro los usuarios seleccionados.
+                for SEL_USU in $SELECCION
+                do
+                    # Compruebo si el usuario tiene una configuración
+                    if [ `cat $BACKUP/.backup.conf|grep $SEL_USU` ]; then
+                        question=`echo "Ya existe una configuración para $SEL_USU.\n¿Desea modificarla?"`
+                        zen_question
+                        if [ $? -eq 0 ]; then
+                            echo "la modifico"
+                        fi
+                    else
+                        SEL_GRU=$SEL_USU                    
+                        DATOS=$(menu_confi "Configuración automática")
+                        NUM_COP=`echo $DATOS|cut -d":" -f1`
+                        DIAS_COP=`echo $DATOS|cut -d":" -f2`
+                        if [ "$NUM_COP" = "" ]; then
+                            error="No ha introducido el número de copias."
+                            zen_error
+                        else
+                            if [ "$DIAS_COP" = "" ]; then
+                                error="No ha introducido el número de días."
+                                zen_error
+                            else
+                                CONFI=`echo $SEL_USU":"$SEL_GRU":"$NUM_COP":"$DIAS_COP`
+                                echo $CONFI>>$BACKUP/.backup.conf
+                            fi
+                        fi
+                    fi
+                done
+            ;;
+            3)
+                # Crear configuración para uno o varios grupos.
+            ;;
+            4)
+                # Modificar configuración para uno o varios usuarios.
+            ;;
+            5)
+                # Modificar configuración para uno o varios grupos.
+            ;;
+            6)
+                # Borrar configuraciones.
+            ;;
+            esac
         ;;
         6)
-            echo "Salir"
+            notification="Hasta otra $USER"
+            zen_notification
             SALIDA=1
         ;;
         esac
-
     done
-
 fi
 
 # Ejecución automática del script.
 if [ $0 = "$HOME/bin/autobackup.sh" ]; then
 
-    echo "Estoy dentro de .profile."
+    echo "hola"
 
 fi
 
