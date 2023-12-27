@@ -158,7 +158,6 @@ restaurar_copia () {
     generar_log restaurar
 }
 devolver_propiedad () {
-    # Devuelvo la propiedad de los archivos descomprimidos al usuario o grupo.
     case $1 in
     usuario)
         sudo chown -R $REST_USU:$REST_USU $REST_RUT
@@ -167,6 +166,60 @@ devolver_propiedad () {
         sudo chown -R $REST_USU:$REST_GRU $REST_RUT
     ;;
     esac
+}
+visualizar_confi () {
+    zenity --title "Configuraciones existentes" \
+        --width="500" \
+        --height="500" \
+        --list \
+        --multiple \
+        --separator=" " \
+        --column "Usuario" \
+        --column "Grupo" \
+        --column "Nº Copias" \
+        --column "Nº Días" \
+        `while IFS=: read SEL_USU SEL_GRU NUM_COP DIAS_COP
+        do
+            echo $SEL_USU
+            echo $SEL_GRU
+            echo $NUM_COP
+            echo $DIAS_COP
+        done<$BACKUP/.backup.conf`
+}
+crear_confi () { 
+    DATOS=$(menu_confi "Configuración automática")
+    NUM_COP=`echo $DATOS|cut -d":" -f1`
+    DIAS_COP=`echo $DATOS|cut -d":" -f2`
+    if [ "$NUM_COP" = "" ]; then
+        error="No ha introducido el número de copias."
+        zen_error
+    else
+        if [ "$DIAS_COP" = "" ]; then
+            error="No ha introducido el número de días."
+            zen_error
+        else
+            CONF_NUEVA=`echo $SEL_USU":"$SEL_GRU":"$NUM_COP":"$DIAS_COP`
+            echo $CONF_NUEVA>>$BACKUP/.backup.conf
+        fi
+    fi
+}
+modificar_confi () {
+    CONF_ACTUAL=$(cat $BACKUP/.backup.conf|grep $SEL_USU)
+    DATOS=$(menu_confi "Modificar configuración")
+    NUM_COP=`echo $DATOS|cut -d":" -f1`
+    DIAS_COP=`echo $DATOS|cut -d":" -f2`
+    if [ "$NUM_COP" = "" ]; then
+        error="No ha introducido el número de copias."
+        zen_error
+    else
+        if [ "$DIAS_COP" = "" ]; then
+            error="No ha introducido el número de días."
+            zen_error
+        else
+            CONF_NUEVA=`echo $SEL_USU":"$SEL_GRU":"$NUM_COP":"$DIAS_COP`
+            sed -i "s/$CONF_ACTUAL/$CONF_NUEVA/" $BACKUP/.backup.conf
+        fi
+    fi
 }
 
 
@@ -714,26 +767,12 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
             3 "Crear configuración para uno o varios grupos." \
             4 "Modificar configuración para uno o varios usuarios." \
             5 "Modificar configuración para uno o varios grupos." \
-            6 "Borrar consiguraciones.")
+            6 "Borrar configuraciones.")
 
             case $SUBMENU5 in
             1)
                 # Visualizar configuraciones existentes.
-                zenity --title "Configuraciones existentes" \
-                    --width="500" \
-                    --height="500" \
-                    --list \
-                    --column "Usuario" \
-                    --column "Grupo" \
-                    --column "Nº Copias" \
-                    --column "Nº Días" \
-                    `while IFS=: read SEL_USU SEL_GRU NUM_COP DIAS_COP
-                    do
-                        echo $SEL_USU
-                        echo $SEL_GRU
-                        echo $NUM_COP
-                        echo $DIAS_COP
-                    done<$BACKUP/.backup.conf`
+                visualizar_confi
             ;;
             2)
                 # Crear configuración para uno o varios usuarios.
@@ -744,44 +783,147 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                 # Recorro los usuarios seleccionados.
                 for SEL_USU in $SELECCION
                 do
-                    # Compruebo si el usuario tiene una configuración
+                    SEL_GRU=$SEL_USU  
+                    # Compruebo si el usuario tiene una configuración.
                     if [ `cat $BACKUP/.backup.conf|grep $SEL_USU` ]; then
-                        question=`echo "Ya existe una configuración para $SEL_USU.\n¿Desea modificarla?"`
+                        question=`echo -e "Ya existe una configuración para $SEL_USU.\n¿Desea modificarla?"`
                         zen_question
                         if [ $? -eq 0 ]; then
-                            echo "la modifico"
+                            modificar_confi
                         fi
-                    else
-                        SEL_GRU=$SEL_USU                    
-                        DATOS=$(menu_confi "Configuración automática")
-                        NUM_COP=`echo $DATOS|cut -d":" -f1`
-                        DIAS_COP=`echo $DATOS|cut -d":" -f2`
-                        if [ "$NUM_COP" = "" ]; then
-                            error="No ha introducido el número de copias."
-                            zen_error
-                        else
-                            if [ "$DIAS_COP" = "" ]; then
-                                error="No ha introducido el número de días."
-                                zen_error
-                            else
-                                CONFI=`echo $SEL_USU":"$SEL_GRU":"$NUM_COP":"$DIAS_COP`
-                                echo $CONFI>>$BACKUP/.backup.conf
-                            fi
-                        fi
+                    else                
+                        crear_confi
                     fi
                 done
             ;;
             3)
                 # Crear configuración para uno o varios grupos.
+                # Pido los grupos.
+                SELECCION=$(menu_selec_multi "Crear configuración para uno o varios grupos" "Grupo" \
+                    `echo $GRUPOS`)
+
+                # Recorro los grupos seleccionados.
+                for SEL_GRU in $SELECCION
+                do
+                    # Saco los usuarios del grupo.
+                    while IFS=: read etc_nom etc_pass etc_gid etc_usu
+                    do
+                        if [ "$SEL_GRU" = "$etc_nom" ]; then
+                            if [ "$etc_usu" = "" ]; then
+                                LISTA_USU=$etc_nom
+                            else
+                                LISTA_USU=$(echo $etc_usu|tr "," " ")
+                            fi
+                        fi
+                    done</etc/group
+                    # Recorro los usuarios para crear sus configuraciones.
+                    for SEL_USU in $LISTA_USU
+                    do
+                        # Compruebo si el usuario tiene una configuración.
+                        if [ `cat $BACKUP/.backup.conf|grep $SEL_USU` ]; then
+                            question=`echo -e "Ya existe una configuración para $SEL_USU.\n¿Desea modificarla?"`
+                            zen_question
+                            if [ $? -eq 0 ]; then
+                                modificar_confi
+                            fi
+                        else
+                            crear_confi
+                        fi
+                    done
+                done
             ;;
             4)
                 # Modificar configuración para uno o varios usuarios.
+                # Muestro los usuarios que ya tienen configuración.
+                SELECCION=$(menu_selec_multi "Modificar configuración para uno o varios usuarios" "Usuario" \
+                    `while IFS=: read ARCH_USU ARCH_GRU ARCH_COP ARCH_DIA
+                    do
+                        echo $ARCH_USU
+                    done<$BACKUP/.backup.conf`)
+
+                # Recorro los usuarios seleccionados.
+                for SEL_USU in $SELECCION
+                do
+                    SEL_GRU=$SEL_USU  
+                    modificar_confi
+                done
             ;;
             5)
                 # Modificar configuración para uno o varios grupos.
+                # Muestro los grupos que ya tienen configuración.
+                SELECCION=$(menu_selec_multi "Modificar configuración para uno o varios grupos" "Grupo" \
+                    `while IFS=: read ARCH_USU ARCH_GRU ARCH_COP ARCH_DIA
+                    do
+                        echo $ARCH_GRU
+                    done<$BACKUP/.backup.conf`)
+
+                #Recorro los grupos seleccionados
+                for SEL_GRU in $SELECCION
+                do
+                    # Saco los usuarios del grupo.
+                    while IFS=: read etc_nom etc_pass etc_gid etc_usu
+                    do
+                        if [ "$SEL_GRU" = "$etc_nom" ]; then
+                            if [ "$etc_usu" = "" ]; then
+                                LISTA_USU=$etc_nom
+                            else
+                                LISTA_USU=$(echo $etc_usu|tr "," " ")
+                            fi
+                        fi
+                    done</etc/group
+                    # Recorro los usuarios para modificar sus configuraciones.
+                    for SEL_USU in $LISTA_USU
+                    do
+                        modificar_confi
+                    done
+                done
             ;;
             6)
                 # Borrar configuraciones.
+                SUBMENU5_6=$(mostrar_menu "Borrar configuración" "Opción" "Menú" \
+                1 "Seleccionar una o varias configuraciones." \
+                2 "Introducir nombre de usuario." \
+                3 "Introducir nombre de grupo.")
+
+                case $SUBMENU5_6 in
+                1)
+                    # Seleccionar configuraciones.
+                    SELECCION=$(visualizar_confi)
+                    
+                    # Recorro las configuraciones seleccionadas para borrarlas.
+                    for CONF in $SELECCION
+                    do
+                        CONF_ACTUAL=`cat $BACKUP/.backup.conf|grep $CONF`
+                        sed -i "/$CONF_ACTUAL/d" $BACKUP/.backup.conf
+                    done
+                ;;
+                2)
+                    # Introducir nombre de usuario.
+                    SEL_USU=$(zen_forms "Borrar configuración" "Rellena el campo" "Usuario")
+                    
+                    # Recorro el archivo para borrar el usuario introducido.
+                    while IFS=: read ARCH_USU ARCH_GRU ARCH_COP ARCH_DIA
+                    do
+                        if [ "$ARCH_USU" = "$SEL_USU" ]; then 
+                            CONF_ACTUAL=`cat $BACKUP/.backup.conf|grep $ARCH_USU`
+                            sed -i "/$CONF_ACTUAL/d" $BACKUP/.backup.conf
+                        fi
+                    done<$BACKUP/.backup.conf
+                ;;
+                3)
+                    # Introducir nombre de grupo.
+                    SEL_GRU=$(zen_forms "Borrar configuración" "Rellena el campo" "Grupo")
+
+                    # Recorro el archivo para borrar el grupo introducido.
+                    while IFS=: read ARCH_USU ARCH_GRU ARCH_COP ARCH_DIA
+                    do
+                        if [ "$ARCH_GRU" = "$SEL_GRU" ]; then 
+                            CONF_ACTUAL=`cat $BACKUP/.backup.conf|grep $ARCH_USU`
+                            sed -i "/$CONF_ACTUAL/d" $BACKUP/.backup.conf
+                        fi
+                    done<$BACKUP/.backup.conf   
+                ;;
+                esac
             ;;
             esac
         ;;
