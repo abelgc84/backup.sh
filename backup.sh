@@ -939,7 +939,65 @@ fi
 # Ejecución automática del script.
 if [ $0 = "$HOME/bin/autobackup.sh" ]; then
 
-    echo "hola"
+    typeset -i DD
+    typeset -i MM
+    typeset -i YY
+    typeset -i NUM_DIAS_COP
+    typeset -i NUM_DIAS_ACT
+    typeset -i DIF
+    DD=0
+    MM=0
+    YY=0
+    NUM_DIAS_COP=0
+    NUM_DIAS_ACT=0
+    DIF=0
+    # Recorro el archivo de configuración.
+    while IFS=: read ARCH_USU ARCH_GRU ARCH_COP ARCH_DIA
+    do
+        echo "ARCH_USU: $ARCH_USU ARCH_GRU: $ARCH_GRU ARCH_COP: $ARCH_COP ARCH_DIA: $ARCH_DIA"
+        usuario=$ARCH_USU
+        if [ !-d "$BACKUP/$usuario" ]; then
+            mkdir $BACKUP/$usuario
+        fi
+        ALMACENADAS=`ls -1 $BACKUP/$usuario|wc -l`
+        if [ $ALMACENADAS -eq 0 ]; then
+            crear_copia
+        fi
+        ULT_COP=`ls -1t $BACKUP/$usuario|head -1`
+        
+        # Días de la última copia.
+        FEC_COP=`echo $ULT_COP|cut -d"_" -f3`
+        DD=`echo $FEC_COP|cut -d"-" -f1`
+        MM=(`echo $FEC_COP|cut -d"-" -f2`-1)*30
+        YY=`echo $FEC_COP|cut -d"-" -f3`*365
+        NUM_DIAS_COP=$DD+$MM+$YY
+
+        # Días de la fecha actual.
+        DD=`echo $FECHA|cut -d"-" -f1`
+        MM=(`echo $FECHA|cut -d"-" -f2`-1)*30
+        YY=`echo $FECHA|cut -d"-" -f3`*365
+        NUM_DIAS_ACT=$DD+$MM+$YY
+
+        # Días transcurridos desde la última copia.
+        DIF=$NUM_DIAS_ACT-$NUM_DIAS_COP
+
+        # Compruebo que la diferencia de días concuerde con la configuración del usuario.
+        if [ $DIF -ge $ARCH_DIA ]; then
+            crear_copia
+        else
+            if [ $ALMACENADAS -lt $ARCH_COP ]; then 
+                crear_copia
+            fi
+        fi
+
+        # Compruebo que el número de copias almacenadas concuerde con la configuración del usuario.
+        if [ $ALMACENADAS -gt $ARCH_COP ]; then
+            # Saco la copia más antigua para borrarla.
+            BORR_COP=`ls -1t $BACKUP/$usuario|tail -1`
+            sudo rm -r $BACKUP/$usuario/$BORR_COP
+            generar_log borrar
+        fi
+    done<$BACKUP/.backup.conf
 
 fi
 
