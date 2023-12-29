@@ -60,11 +60,12 @@ El script proporciona una solución integral para el administrador de sistemas e
 # Recomendaciones.
 
 * Revisar y entender el script completamente antes de su uso.
-* Modificar configuraciones predeterminadas para adaptarlas a las necesidades específicas de cada sistema.
+* Revisar las configuraciones predeterminadas para adaptarlas a las necesidades específicas de cada sistema.
 * Modificar el archivo `sudoers` para excluir al script de las peticiones de contraseña añadiendo:
 ```
 usuario    ALL=(ALL) NOPASSWD: /ruta/al/script/backup.sh
 usuario    ALL=(ALL) NOPASSWD: /ruta/al/script/autobackup.sh
 ```
+La utilización de la ejecución automática sin estas modificaciones puede provocar problemas de inicio de sesión.
 
 > Este documento proporciona una visión general del script y sus características clave. Se recomienda revisar el código fuente directamente para obtener detalles más específicos.
