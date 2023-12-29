@@ -1,7 +1,7 @@
 #! /bin/bash
 
 # Creación de la carpeta de almacenamiento.
-if [ ! -d $HOME/backup ]; then
+if [ ! -d "$HOME/backup" ]; then
     mkdir $HOME/backup
 fi
 
@@ -46,7 +46,7 @@ mostrar_menu () {
            --column "$columna2" \
            "$@"
 }
-# Menú estándar de selección.
+# Menú estándar de selección simple.
 menu_selec () {
     titulo="$1"
     shift
@@ -74,6 +74,7 @@ menu_selec_multi () {
         --column "$columna1" \
         "$@"
 }
+# Menú de entrada de formulario para crear configuraciones automáticas.
 menu_confi () {
     zenity --title "$1" \
         --width="500" \
@@ -118,7 +119,7 @@ generar_log () {
         echo $1":"$REST_USU":"$FECHA":"$ORIGEN>>$BACKUP/.backup.log
     ;;
     borrar)
-        echo $1":"$USER":"$FECHA":"$BACKUP/$usuario/$BORR_COP/$BORR_COP.tar.gz>>$BACKUP/.backup.log
+        echo $1":"$USER":"$FECHA":"$BORR_COP".tar.gz">>$BACKUP/.backup.log
     ;;
     esac
 }
@@ -142,7 +143,7 @@ sobreescribir () {
         --text "¿Desea sobreescribirla?"
 }
 directorio () {
-    if [ ! -d $BACKUP/$usuario ]; then
+    if [ ! -d "$BACKUP/$usuario" ]; then
         mkdir $BACKUP/$usuario
     fi
 }
@@ -166,6 +167,14 @@ devolver_propiedad () {
         sudo chown -R $REST_USU:$REST_GRU $REST_RUT
     ;;
     esac
+}
+borrar_copia () { 
+    sudo rm -r $BACKUP/$usuario/$BORR_COP
+    generar_log borrar
+    CANT_COP=`ls $BACKUP/$usuario|wc -l`
+    if [ $CANT_COP -eq 0 ]; then
+        sudo rm -r $BACKUP/$usuario
+    fi
 }
 visualizar_confi () {
     zenity --title "Configuraciones existentes" \
@@ -236,14 +245,9 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
             4 "Visualizar copias de seguridad." \
             5 "Configurar ejecución automática." \
             6 "Salir.")
-
-# Pendiente por hacer para todo zenity.
-# Comprobar botones de aceptar para no continuar la ejecución si no se ha pulsado aceptar.
-# Comprobar cadenas vacias, para no continuar la ejecución si no se ha seleccionado nada. 
-
-        # Chequear el botón cancelar y X para salir.
+        # Comprobar el botón cancelar y X de zenity.
         if [ $? -eq 1 ]; then
-            exit
+            break
         fi 
 
         # Submenus.
@@ -259,66 +263,62 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                 # Seleccionar un usuario o varios.
                 SELECCION=$(menu_selec_multi "Lista de usuarios" "Usuarios del sistema" \
                     `echo $USUARIOS`)
-
-                # Recorro los usuarios seleccionados para hacer sus copias.
-                for usuario in $SELECCION
-                do
-                    # Comprobar que cada usuario tenga su directorio de copias.
-                    directorio
-                    # Comprobar que la copia no existe.
-                    if [ ! -d $BACKUP/$usuario/copia_${usuario}_${FECHA} ]; then
-                        crear_copia
-                        notification="Copia de seguridad para $usuario finalizada."
-                        zen_notification
-                    else
-                        sobreescribir
-                        if [ $? -eq 0 ]; then
+                if [ $? -eq 0 -a "$SELECCION" != "" ]; then
+                    # Recorro los usuarios seleccionados.
+                    for usuario in $SELECCION
+                    do
+                        # Comprobar que cada usuario tenga su directorio de copias.
+                        directorio
+                        # Comprobar que la copia no existe.
+                        if [ ! -d "$BACKUP/$usuario/copia_${usuario}_${FECHA}" ]; then
                             crear_copia
                             notification="Copia de seguridad para $usuario finalizada."
                             zen_notification
+                        else
+                            sobreescribir
+                            if [ $? -eq 0 ]; then
+                                crear_copia
+                                notification="Copia de seguridad para $usuario finalizada."
+                                zen_notification
+                            fi
                         fi
-                    fi
-                done
+                    done
+                fi
             ;;
             2)
-                # Seleccionar un grupo de usuarios o varios.
+                # Seleccionar un grupo o varios.
                 SELECCION=$(menu_selec_multi "Lista de grupos" "Grupos del sistema" \
                     `echo $GRUPOS`)
-
-                # Recorro los grupos seleccionados.
-                for grupo in $SELECCION
-                do
-                    # Saco la lista de usuarios perteneciente a cada grupo y los recorro para hacer sus copias.
-                    while IFS=: read etc_nom etc_pass etc_gid etc_usu
-                    do
-                        if [ "$grupo" = "$etc_nom" ]; then
-                            # Si el grupo no tiene usuarios, el usuario tendrá el nombre del grupo.
-                            if [ "$etc_usu" = "" ]; then
-                                SEL_USU=$etc_nom
-                            else
-                                SEL_USU=$(echo $etc_usu|tr "," " ")
-                            fi
-                            for usuario in $SEL_USU
+                if [ $? -eq 0 -a "$SELECCION" != "" ]; then
+                    # Recorro los grupos seleccionados.
+                    question=`echo -e "Todas las copias con la fecha de hoy se sobreescribirán.\n¿Desea continuar?"`
+                    zen_question
+                    if [ $? -eq 0 ]; then
+                        for grupo in $SELECCION
+                        do
+                            # Saco la lista de usuarios perteneciente a cada grupo.
+                            while IFS=: read etc_nom etc_pass etc_gid etc_usu
                             do
-                                # Compruebo que el usuario tenga su directorio de copias.
-                                directorio
-                                # Compruebo si la copia existe.
-                                if [ ! -d $BACKUP/$usuario/copia_${usuario}_${FECHA} ]; then
-                                    crear_copia
-                                    notification="Copia de seguridad para $usuario finalizada."
-                                    zen_notification
-                                else
-                                    sobreescribir
-                                    if [ $? -eq 0 ]; then
+                                if [ "$grupo" = "$etc_nom" ]; then
+                                    # Si el grupo no tiene usuarios, el usuario tendrá el nombre del grupo.
+                                    if [ "$etc_usu" = "" ]; then
+                                        SEL_USU=$etc_nom
+                                    else
+                                        SEL_USU=$(echo $etc_usu|tr "," " ")
+                                    fi
+                                    # Recorro cada usuario para hacer su copia.
+                                    for usuario in $SEL_USU
+                                    do
+                                        directorio
                                         crear_copia
                                         notification="Copia de seguridad para $usuario finalizada."
                                         zen_notification
-                                    fi
+                                    done
                                 fi
-                            done
-                        fi
-                    done</etc/group
-                done
+                            done</etc/group
+                        done
+                    fi
+                fi
             ;;
             esac
         ;;
@@ -337,110 +337,172 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                     do
                         echo $usuario|cut -d"/" -f5
                     done`)
-
-                REST_COP=$(menu_selec "Restaurar copia de seguridad de $REST_USU" "Copias almacenadas" \
-                    `for archivo in $BACKUP/$REST_USU/*
-                    do
-                        echo $archivo|cut -d"/" -f6
-                    done`)
-
-                # Bucle para pedir la ruta.
-                SALIDA_RUT=0
-                while [ $SALIDA_RUT -eq 0 ]
-                do
-                    REST_RUT=$(zen_forms "Restaurar copia de seguridad de $REST_USU" "Introduce la ruta absoluta." "Ruta")
-                    
-                    # Chequear el botón cancelar y X 
-                    if [ $? -eq 1 ]; then
-                        break
-                    fi 
-
-                    # Verifico que la ruta de destino sea absoluta.
-                    if [ `echo $REST_RUT|cut -c1` != "/" ]; then
-                        error="La ruta introducida no es absoluta."
-                        zen_error
-                    else
-                        # Compruebo que el directorio de destino exista.
-                        if [ ! -d $REST_RUT ]; then
-                            question="La ruta elegida no existe. ¿Desea crearla?"
-                            zen_question
-                            if [ $? -eq 0 ]; then
-                                sudo mkdir -p $REST_RUT
-                                if [ $? -eq 0 ]; then
+                if [ $? -eq 0 -a "$REST_USU" != "" ]; then
+                    REST_COP=$(menu_selec "Restaurar copia de seguridad de $REST_USU" "Copias almacenadas" \
+                        `for archivo in $BACKUP/$REST_USU/*
+                        do
+                            echo $archivo|cut -d"/" -f6
+                        done`)
+                    if [ $? -eq 0 -a "$REST_COP" != "" ]; then
+                        # Bucle para pedir la ruta.
+                        SALIDA_RUT=0
+                        while [ $SALIDA_RUT -eq 0 ]
+                        do
+                            REST_RUT=$(zen_forms "Restaurar copia de seguridad de $REST_USU" "Introduce la ruta absoluta." "Ruta") 
+                            if [ $? -eq 1 ]; then
+                                break
+                            fi 
+                            # Verifico que la ruta de destino sea absoluta.
+                            if [ "`echo $REST_RUT|cut -c1`" != "/" ]; then
+                                error="La ruta $REST_RUT no es absoluta."
+                                zen_error
+                            else
+                                # Compruebo que el directorio de destino exista.
+                                if [ ! -d "$REST_RUT" ]; then
+                                    question="La ruta $REST_RUT no existe. ¿Desea crearla?"
+                                    zen_question
+                                    if [ $? -eq 0 ]; then
+                                        sudo mkdir -p $REST_RUT
+                                        if [ $? -eq 0 ]; then
+                                            restaurar_copia
+                                            devolver_propiedad usuario
+                                            notification="Copia de seguridad de $REST_USU restaurada."
+                                            zen_notification
+                                        fi
+                                        SALIDA_RUT=1
+                                    else
+                                        question="¿Quiere introducir otra ruta?"
+                                        zen_question
+                                        if [ $? -eq 1 ]; then
+                                            SALIDA_RUT=1
+                                        fi
+                                    fi
+                                else
                                     restaurar_copia
                                     devolver_propiedad usuario
                                     notification="Copia de seguridad de $REST_USU restaurada."
                                     zen_notification
-                                fi
-                                SALIDA_RUT=1
-                            else
-                                question="¿Quiere introducir otra ruta?"
-                                zen_question
-                                if [ $? -eq 1 ]; then
                                     SALIDA_RUT=1
                                 fi
                             fi
-                        else
-                            restaurar_copia
-                            devolver_propiedad usuario
-                            notification="Copia de seguridad de $REST_USU restaurada."
-                            zen_notification
-                            SALIDA_RUT=1
-                        fi
+                        done
                     fi
-                done
+                fi
             ;;
             2)
                 # Restaurar copia de un grupo.
                 REST_GRU=$(menu_selec "Restaurar copia de seguridad de un grupo" "Grupo" \
                     `echo $GRUPOS`)
-
-                # Saco la lista de usuarios perteneciente al grupo.
-                while IFS=: read etc_nom etc_pass etc_gid etc_usu
-                do
-                    if [ "$REST_GRU" = "$etc_nom" ]; then
-                        if [ "$etc_usu" = "" ]; then
-                            USU_GRU=$etc_nom
-                        else
-                            USU_GRU=$(echo $etc_usu|tr "," " ")
+                if [ $? -eq 0 -a "$REST_GRU" != "" ]; then
+                    # Saco la lista de usuarios perteneciente al grupo.
+                    while IFS=: read etc_nom etc_pass etc_gid etc_usu
+                    do
+                        if [ "$REST_GRU" = "$etc_nom" ]; then
+                            if [ "$etc_usu" = "" ]; then
+                                USU_GRU=$etc_nom
+                            else
+                                USU_GRU=$(echo $etc_usu|tr "," " ")
+                            fi
+                            # Recorro los usuarios para restaurar sus copias.
+                            for REST_USU in $USU_GRU
+                            do
+                                info=`echo "Restaurando copia para" $REST_USU". Seleccione la copia."`
+                                zen_info
+                                REST_COP=$(menu_selec "Restaurar copia de seguridad de $REST_USU" "Copias almacenadas" \
+                                    `for archivo in $BACKUP/$REST_USU/*
+                                    do 
+                                        echo $archivo|cut -d"/" -f6
+                                    done`)
+                                if [ $? -eq 0 -a "$REST_COP" != "" ]; then
+                                    # Bucle para pedir la ruta.
+                                    SALIDA_RUT=0
+                                    while [ $SALIDA_RUT -eq 0 ]
+                                    do
+                                        REST_RUT=$(zen_forms "Restaurar copia de seguridad de $REST_USU" "Introduce la ruta absoluta." "Ruta")
+                                        if [ $? -eq 1 ]; then
+                                            break
+                                        fi 
+                                        if [ "`echo $REST_RUT|cut -c1`" != "/" ]; then
+                                            error="La ruta $REST_RUT no es absoluta."
+                                            zen_error
+                                        else
+                                            if [ ! -d "$REST_RUT" ]; then
+                                                question="La ruta $REST_RUT no existe. ¿Desea crearla?"
+                                                zen_question
+                                                if [ $? -eq 0 ]; then
+                                                    sudo mkdir -p $REST_RUT
+                                                    if [ $? -eq 0 ]; then
+                                                        restaurar_copia
+                                                        devolver_propiedad grupo
+                                                        notification="Copia de seguridad de $REST_USU restaurada."
+                                                        zen_notification
+                                                    fi
+                                                    SALIDA_RUT=1
+                                                else
+                                                    question="¿Quiere introducir otra ruta?"
+                                                    zen_question
+                                                    if [ $? -eq 1 ]; then
+                                                        SALIDA_RUT=1
+                                                    fi
+                                                fi
+                                            else
+                                                restaurar_copia
+                                                devolver_propiedad grupo
+                                                notification="Copia de seguridad de $REST_USU restaurada."
+                                                zen_notification
+                                                SALIDA_RUT=1
+                                            fi
+                                        fi
+                                    done
+                                fi                        
+                            done
                         fi
-
-                        # Recorro los usuarios para restaurar sus copias.
-                        for REST_USU in $USU_GRU
+                    done</etc/group
+                fi
+            ;;
+            3)
+                # Restaurar copia de una fecha.
+                REST_FEC=$(zen_calendar "Restaurar copia de seguridad")
+                if [ $? -eq 0 -a "$REST_FEC" != "" ]; then
+                    REST_FEC=`echo $REST_FEC|tr "/" "-"`
+                    # Recorro las carpetas de almacenamiento de cada usuario.
+                    lista=""
+                    for usuario in $BACKUP/*
+                    do
+                        # Busco para cada usuario una copia con la fecha seleccionada.
+                        for copia in $usuario/*
                         do
-                            # Pido la copia que se quiere restarurar.
-                            info=`echo "Restaurando copia para" $REST_USU". Seleccione la copia."`
-                            zen_info
-                            REST_COP=$(menu_selec "Restaurar copia de seguridad de $REST_USU" "Copias almacenadas" \
-                                `for archivo in $BACKUP/$REST_USU/*
-                                do 
-                                    echo $archivo|cut -d"/" -f6
-                                done`)
-
-                            # Bucle para pedir la ruta.
+                            # Almaceno las copias encontradas.
+                            lista="$lista `echo $copia|grep $REST_FEC|cut -d"/" -f6`"
+                        done
+                    done
+                    # Muestro las copias para elegir cuáles se quieren restaurar.
+                    SELECCION=$(menu_selec_multi "Restaurar copia de seguridad" "Copia" \
+                        `echo $lista`)
+                    if [ $? -eq 0 -a "$REST_FEC" != "" ]; then
+                        # Recorro las copias seleccionadas para restaurarlas.
+                        for REST_COP in $SELECCION
+                        do
+                            REST_USU=`echo $REST_COP|cut -d"_" -f2`
                             SALIDA_RUT=0
                             while [ $SALIDA_RUT -eq 0 ]
                             do
                                 REST_RUT=$(zen_forms "Restaurar copia de seguridad de $REST_USU" "Introduce la ruta absoluta." "Ruta")
-                    
                                 if [ $? -eq 1 ]; then
                                     break
                                 fi 
-
-                                # Verifico que la ruta de destino sea absoluta.
-                                if [ `echo $REST_RUT|cut -c1` != "/" ]; then
+                                if [ "`echo $REST_RUT|cut -c1`" != "/" ]; then
                                     error="La ruta introducida no es absoluta."
                                     zen_error
                                 else
-                                    # Compruebo que el directorio de destino exista.
-                                    if [ ! -d $REST_RUT ]; then
+                                    if [ ! -d "$REST_RUT" ]; then
                                         question="La ruta elegida no existe. ¿Desea crearla?"
                                         zen_question
                                         if [ $? -eq 0 ]; then
                                             sudo mkdir -p $REST_RUT
                                             if [ $? -eq 0 ]; then
                                                 restaurar_copia
-                                                devolver_propiedad grupo
+                                                devolver_propiedad usuario
                                                 notification="Copia de seguridad de $REST_USU restaurada."
                                                 zen_notification
                                             fi
@@ -454,89 +516,16 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                                         fi
                                     else
                                         restaurar_copia
-                                        devolver_propiedad grupo
-                                        notification="Copia de seguridad de $REST_USU restaurada."
-                                        zen_notification
-                                        SALIDA_RUT=1
-                                    fi
-                                fi
-                            done                              
-                        done
-                    fi
-                done</etc/group 
-            ;;
-            3)
-                # Restaurar copia de una fecha.
-                # Pido la fecha y le doy mi formato.
-                REST_FEC=$(zen_calendar "Restaurar copia de seguridad")
-                REST_FEC=`echo $REST_FEC|tr "/" "-"`
- 
-                # Recorro las carpetas de almacenamiento de cada usuario.
-                for usuario in $BACKUP/*
-                do
-                    # Busco para cada usuario una copia con la fecha seleccionada.
-                    for copia in $usuario/*
-                    do
-                        # Almaceno las copias encontradas.
-                        lista="$lista `echo $copia|grep $REST_FEC|cut -d"/" -f6`"
-                    done
-                done
-
-                # Muestro las copias para elegir cuáles se quieren restaurar
-                SELECCION=$(menu_selec_multi "Restaurar copia de seguridad" "Copia" \
-                    `echo $lista`)
-
-                # Restauro las copias seleccionadas.
-                for REST_COP in $SELECCION
-                do
-                    REST_USU=`echo $REST_COP|cut -d"_" -f2`
-                    
-                    # Bucle para pedir la ruta.
-                    SALIDA_RUT=0
-                    while [ $SALIDA_RUT -eq 0 ]
-                    do
-                        REST_RUT=$(zen_forms "Restaurar copia de seguridad de $REST_USU" "Introduce la ruta absoluta." "Ruta")
-                    
-                        # Chequear el botón cancelar y X 
-                        if [ $? -eq 1 ]; then
-                            break
-                        fi 
-
-                        # Verifico que la ruta de destino sea absoluta.
-                        if [ `echo $REST_RUT|cut -c1` != "/" ]; then
-                            error="La ruta introducida no es absoluta."
-                            zen_error
-                        else
-                            # Compruebo que el directorio de destino exista.
-                            if [ ! -d $REST_RUT ]; then
-                                question="La ruta elegida no existe. ¿Desea crearla?"
-                                zen_question
-                                if [ $? -eq 0 ]; then
-                                    sudo mkdir -p $REST_RUT
-                                    if [ $? -eq 0 ]; then
-                                        restaurar_copia
                                         devolver_propiedad usuario
                                         notification="Copia de seguridad de $REST_USU restaurada."
                                         zen_notification
-                                    fi
-                                    SALIDA_RUT=1
-                                else
-                                    question="¿Quiere introducir otra ruta?"
-                                    zen_question
-                                    if [ $? -eq 1 ]; then
                                         SALIDA_RUT=1
                                     fi
                                 fi
-                            else
-                                restaurar_copia
-                                devolver_propiedad usuario
-                                notification="Copia de seguridad de $REST_USU restaurada."
-                                zen_notification
-                                SALIDA_RUT=1
-                            fi
-                        fi
-                    done
-                done
+                            done
+                        done
+                    fi
+                fi
             ;;
             esac
         ;;
@@ -550,111 +539,113 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
             case $SUBMENU3 in
             1)
                 # Borrar copia de seguridad de uno o varios usuarios.
-                # Muestro los usuarios con copias.
                 SELECCION=$(menu_selec_multi "Usuarios con copias almacenadas" "Usuarios" \
                     `for usuario in $BACKUP/*
                     do
                         echo $usuario|cut -d"/" -f5
                     done`)
-                
-                # Recorro los usuarios seleccionados
-                for usuario in $SELECCION
-                do
-                    # Pido las copias que se quieran borrar.
-                    SEL_COP=$(menu_selec_multi "Copias almacenadas para $usuario" "Copias" \
-                    `for copia in $BACKUP/$usuario/*
+                if [ $? -eq 0 -a "$SELECCION" != "" ]; then
+                    # Recorro los usuarios seleccionados
+                    for usuario in $SELECCION
                     do
-                        echo $copia|cut -d"/" -f6
-                    done`)
-                    # Recorro las copias para borrarlas.
-                    for BORR_COP in $SEL_COP
-                    do
-                        question="¿Esta seguro que quiere borrar $BORR_COP?"
-                        zen_question
-                        if [ $? -eq 0 ]; then
-                            sudo rm -r $BACKUP/$usuario/$BORR_COP
-                            generar_log borrar
-                            notification=`echo "Copia" $BORR_COP "borrada."`
-                            zen_notification
+                     # Pido las copias que se quieran borrar.
+                        SEL_COP=$(menu_selec_multi "Copias almacenadas para $usuario" "Copias" \
+                        `for copia in $BACKUP/$usuario/*
+                        do
+                            echo $copia|cut -d"/" -f6
+                        done`)
+                        if [ $? -eq 0 -a "$SEL_COP" != "" ]; then
+                            # Recorro las copias para borrarlas.
+                            for BORR_COP in $SEL_COP
+                            do
+                                question="¿Esta seguro que quiere borrar $BORR_COP?"
+                                zen_question
+                                if [ $? -eq 0 ]; then
+                                    borrar_copia
+                                    notification=`echo "Copia" $BORR_COP "borrada."`
+                                    zen_notification
+                                fi
+                            done
                         fi
                     done
-                done
+                fi
             ;;
             2)
                 # Borrar copia de seguridad de uno o varios grupos.
                 # Muestro los grupos.
                 SELECCION=$(menu_selec_multi "Grupos del sistema" "Grupos" \
                 `echo $GRUPOS`)
-
-                # Recorro los grupos seleccionados.
-                for grupo in $SELECCION
-                do
-                    # Saco la lista de usuarios perteneciente a cada grupo y los recorro para borrar las copias.
-                    while IFS=: read etc_nom etc_pass etc_gid etc_usu
+                if [ $? -eq 0 -a "$SELECCION" != "" ]; then
+                    for grupo in $SELECCION
                     do
-                        if [ "$grupo" = "$etc_nom" ]; then
-                            # Si el grupo no tiene usuarios, el usuario tendrá el nombre del grupo.
-                            if [ "$etc_usu" = "" ]; then
-                                SEL_USU=$etc_nom
-                            else
-                                SEL_USU=$(echo $etc_usu|tr "," " ")
-                            fi
-                            for usuario in $SEL_USU
-                            do
-                                # Compruebo que el usuario tenga copias almacenadas.
-                                cop_alm=`ls $BACKUP/$usuario/|wc -l`
-                                if [ $cop_alm -gt 0 ]; then
-                                    # Pido las copias que se quieran borrar.
-                                    SEL_COP=$(menu_selec_multi "Copias almacenadas para $usuario" "Copias" \
-                                    `for copia in $BACKUP/$usuario/*
-                                    do
-                                       echo $copia|cut -d"/" -f6
-                                    done`)
-                                    # Recorro las copias para borrarlas.
-                                    for BORR_COP in $SEL_COP
-                                    do
-                                        question="¿Esta seguro que quiere borrar $BORR_COP?"
-                                        zen_question
-                                        if [ $? -eq 0 ]; then
-                                            sudo rm -r $BACKUP/$usuario/$BORR_COP
-                                            generar_log borrar
-                                            notification=`echo "Copia" $BORR_COP "borrada."`
-                                            zen_notification
-                                        fi
-                                    done
+                        # Saco la lista de usuarios perteneciente a cada grupo y los recorro para borrar las copias.
+                        while IFS=: read etc_nom etc_pass etc_gid etc_usu
+                        do
+                            if [ "$grupo" = "$etc_nom" ]; then
+                                if [ "$etc_usu" = "" ]; then
+                                    SEL_USU=$etc_nom
                                 else
-                                    notification=`echo -e "El usuario" $usuario "del grupo" $grupo "\nno tiene ninguna copia almacenada."`
-                                    zen_notification
+                                    SEL_USU=$(echo $etc_usu|tr "," " ")
                                 fi
-                            done
-                        fi
-                    done</etc/group
-                done
+                                # Recorro los usuarios.
+                                for usuario in $SEL_USU
+                                do
+                                    # Compruebo que el usuario tenga copias almacenadas.
+                                    cop_alm=`ls $BACKUP/$usuario/|wc -l`
+                                    if [ $cop_alm -gt 0 ]; then
+                                        SEL_COP=$(menu_selec_multi "Copias almacenadas para $usuario" "Copias" \
+                                        `for copia in $BACKUP/$usuario/*
+                                        do
+                                        echo $copia|cut -d"/" -f6
+                                        done`)
+                                        if [ $? -eq 0 -a "$SEL_COP" != "" ]; then
+                                            # Recorro las copias para borrarlas.
+                                            for BORR_COP in $SEL_COP
+                                            do
+                                                question="¿Esta seguro que quiere borrar $BORR_COP?"
+                                                zen_question
+                                                if [ $? -eq 0 ]; then
+                                                    borrar_copia
+                                                    notification=`echo "Copia" $BORR_COP "borrada."`
+                                                    zen_notification
+                                                fi
+                                            done
+                                        fi
+                                    else
+                                        notification=`echo -e "El usuario" $usuario "del grupo" $grupo "\nno tiene ninguna copia almacenada."`
+                                        zen_notification
+                                    fi
+                                done
+                            fi
+                        done</etc/group
+                    done
+                fi
             ;;
             3)
                 # Borrar copia de seguridad de una fecha.
-                # Pido la fecha y le doy mi formato.
                 BORR_FEC=$(zen_calendar "Restaurar copia de seguridad.")
-                BORR_FEC=`echo $BORR_FEC|tr "/" "-"`
+                if [ $? -eq 0 -a "$BORR_FEC" != "" ]; then
+                    BORR_FEC=`echo $BORR_FEC|tr "/" "-"`
 
-                # Recorro las carpetas de almacenamiento de cada usuario.
-                for usuario in $BACKUP/*
-                do
-                    # Busco para cada usuario una copia con la fecha seleccionada y la borro.
-                    for BORR_COP in $usuario/*
+                    # Recorro las carpetas de almacenamiento de cada usuario.
+                    for usuario in $BACKUP/*
                     do
-                        if [ `echo $BORR_COP|grep $BORR_FEC` ]; then
-                            question="¿Esta seguro que quiere borrar `echo $BORR_COP|cut -d"/" -f6`?"
-                            zen_question
-                            if [ $? -eq 0 ]; then
-                                sudo rm -r $BORR_COP
-                                generar_log borrar
-                                notificacion="Copia `echo $BORR_COP|grep $BORR_FEC` borrada."
-                                zen_notification
+                        # Busco para cada usuario una copia con la fecha seleccionada.
+                        for BORR_COP in $usuario/*
+                        do
+                            if [ `echo $BORR_COP|grep $BORR_FEC` ]; then
+                                question="¿Esta seguro que quiere borrar `echo $BORR_COP|cut -d"/" -f6`?"
+                                zen_question
+                                if [ $? -eq 0 ]; then
+                                    sudo rm -r $BORR_COP
+                                    generar_log borrar
+                                    notificacion="Copia `echo $BORR_COP|grep $BORR_FEC` borrada."
+                                    zen_notification
+                                fi
                             fi
-                        fi
+                        done
                     done
-                done
+                fi
             ;;
             esac
         ;;
@@ -668,85 +659,77 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
             case $SUBMENU4 in 
             1)
                 # Visualizar copias usuarios.
-                # Muestro los usuarios con copias.
                 SEL_USU=$(menu_selec_multi "Usuarios con copias almacenadas" "Usuario" \
                     `for usuario in $BACKUP/*
                     do
                         echo $usuario|cut -d"/" -f5
                     done`)
-
-                # Recorro cada usuario seleccionado y sus copias para mostrarlas.
-                mostrar_menu "Visualizar copias de uno o varios usuarios" "Usuario" "Copia" \
+                if [ $? -eq 0 -a "$SEL_USU" != "" ]; then
+                    mostrar_menu "Visualizar copias de uno o varios usuarios" "Usuario" "Copia" \
+                        `echo $SEL_USU|tr " " "\n"|while read -r usuario
+                        do
+                            for copia in $BACKUP/$usuario/*
+                            do
+                                echo $usuario 
+                                echo $copia|cut -d"/" -f6
+                            done
+                        done` 
+                fi
+            ;;
+            2)
+                # Visualizar copias grupos.
+                SEL_GRU=$(menu_selec_multi "Grupos del sistema" "Grupo" \
+                `echo $GRUPOS`)
+                if [ $? -eq 0 -a "$SEL_GRU" != "" ]; then
+                    SEL_USU=""
+                    # Saco la lista de usuarios de los grupos seleccionados.
+                    for grupo in $SEL_GRU
+                    do
+                        while IFS=: read etc_nom etc_pass etc_gid etc_usu
+                        do
+                            if [ "$grupo" = "$etc_nom" ]; then
+                                if [ "$etc_usu" = "" ]; then
+                                    SEL_USU=$etc_nom
+                                else
+                                    TEMP=$(echo $etc_usu|tr "," " ")
+                                    for usuario in $TEMP
+                                    do
+                                        SEL_USU="$SEL_USU $usuario"
+                                    done
+                                fi
+                            fi
+                        done</etc/group
+                    done
+                    mostrar_menu "Visualizar copias de uno o varios grupos" "Usuario" "Copia" \
                     `echo $SEL_USU|tr " " "\n"|while read -r usuario
                     do
                         for copia in $BACKUP/$usuario/*
                         do
-                            echo $usuario 
-                            echo $copia|cut -d"/" -f6
-                        done
-                    done` 
-            ;;
-            2)
-                # Visualizar copias grupos.
-                # Muestro los grupos del sistema.
-                SEL_GRU=$(menu_selec_multi "Grupos del sistema" "Grupo" \
-                `echo $GRUPOS`)
-
-#### A REVISAR. Puede que pase lo mismo en otras partes, vaciar la variable por si arrastra algo almacenado
-                SEL_USU=""
-                # Saco la lista de usuarios de los grupos seleccionados.
-                for grupo in $SEL_GRU
-                do
-                    while IFS=: read etc_nom etc_pass etc_gid etc_usu
-                    do
-                        if [ "$grupo" = "$etc_nom" ]; then
-                            if [ "$etc_usu" = "" ]; then
-                                SEL_USU=$etc_nom
-                            else
-                                TEMP=$(echo $etc_usu|tr "," " ")
-                                for usuario in $TEMP
-                                do
-                                    SEL_USU="$SEL_USU $usuario"
-                                done
+                            if [ -d "$copia" ]; then 
+                                echo $usuario
+                                echo $copia|cut -d"/" -f6
                             fi
-                        fi
-                    done</etc/group
-                done
-
-                # Recorro los usuarios y muestro sus copias.
-                mostrar_menu "Visualizar copias de uno o varios grupos" "Usuario" "Copia" \
-                `echo $SEL_USU|tr " " "\n"|while read -r usuario
-                do
-                    for copia in $BACKUP/$usuario/*
-                    do
-                        # Compruebo si tiene copias el usuario
-                        if [ -d $copia ]; then 
-                            echo $usuario
-                            echo $copia|cut -d"/" -f6
-                        fi
-                    done
-                done` 
-
+                        done
+                    done`
+                fi 
             ;;
             3)
                 # Visualizar copias de una fecha.
                 VISU_FEC=$(zen_calendar "Visualizar copias de seguridad.")
-                VISU_FEC=`echo $VISU_FEC|tr "/" "-"`
-
-                # Muestro los usuarios y sus copias con la fecha seleccionada.
-                mostrar_menu "Copias con fecha $VISU_FEC" "Usuarios" "Copias" \
-                `for usuario in $BACKUP/*
-                do
-                    ls $usuario|grep $VISU_FEC|cut -d"_" -f2
-                    ls $usuario|grep $VISU_FEC
-                done`
+                if [ $? -eq 0 -a "$VISU_FEC" != "" ]; then
+                    VISU_FEC=`echo $VISU_FEC|tr "/" "-"`
+                    mostrar_menu "Copias con fecha $VISU_FEC" "Usuarios" "Copias" \
+                    `for usuario in $BACKUP/*
+                    do
+                        ls $usuario|grep $VISU_FEC|cut -d"_" -f2
+                        ls $usuario|grep $VISU_FEC
+                    done`
+                fi
             ;;
             esac
         ;;
         5)
             # Congigurar ejecución automática.
-
-            # Creación del archivo de configuración.
             # Estructura del archivo: usuario:grupo:número_copias_guardadas:días_entre_copias
             if [ ! -f $BACKUP/.backup.conf ]; then
                 touch $BACKUP/.backup.conf
@@ -776,49 +759,13 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
             ;;
             2)
                 # Crear configuración para uno o varios usuarios.
-                # Pido los usuarios.
                 SELECCION=$(menu_selec_multi "Crear configuración para uno o varios usuarios" "Usuario" \
                     `echo $USUARIOS`)
-                
-                # Recorro los usuarios seleccionados.
-                for SEL_USU in $SELECCION
-                do
-                    SEL_GRU=$SEL_USU  
-                    # Compruebo si el usuario tiene una configuración.
-                    if [ `cat $BACKUP/.backup.conf|grep $SEL_USU` ]; then
-                        question=`echo -e "Ya existe una configuración para $SEL_USU.\n¿Desea modificarla?"`
-                        zen_question
-                        if [ $? -eq 0 ]; then
-                            modificar_confi
-                        fi
-                    else                
-                        crear_confi
-                    fi
-                done
-            ;;
-            3)
-                # Crear configuración para uno o varios grupos.
-                # Pido los grupos.
-                SELECCION=$(menu_selec_multi "Crear configuración para uno o varios grupos" "Grupo" \
-                    `echo $GRUPOS`)
-
-                # Recorro los grupos seleccionados.
-                for SEL_GRU in $SELECCION
-                do
-                    # Saco los usuarios del grupo.
-                    while IFS=: read etc_nom etc_pass etc_gid etc_usu
+                if [ $? -eq 0 -a "$SELECCION" != "" ]; then
+                    # Recorro los usuarios seleccionados.
+                    for SEL_USU in $SELECCION
                     do
-                        if [ "$SEL_GRU" = "$etc_nom" ]; then
-                            if [ "$etc_usu" = "" ]; then
-                                LISTA_USU=$etc_nom
-                            else
-                                LISTA_USU=$(echo $etc_usu|tr "," " ")
-                            fi
-                        fi
-                    done</etc/group
-                    # Recorro los usuarios para crear sus configuraciones.
-                    for SEL_USU in $LISTA_USU
-                    do
+                        SEL_GRU=$SEL_USU  
                         # Compruebo si el usuario tiene una configuración.
                         if [ `cat $BACKUP/.backup.conf|grep $SEL_USU` ]; then
                             question=`echo -e "Ya existe una configuración para $SEL_USU.\n¿Desea modificarla?"`
@@ -826,57 +773,91 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                             if [ $? -eq 0 ]; then
                                 modificar_confi
                             fi
-                        else
+                        else                
                             crear_confi
                         fi
                     done
-                done
+                fi
+            ;;
+            3)
+                # Crear configuración para uno o varios grupos.
+                SELECCION=$(menu_selec_multi "Crear configuración para uno o varios grupos" "Grupo" \
+                    `echo $GRUPOS`)
+                if [ $? -eq 0 -a "$SELECCION" != "" ]; then
+                    # Recorro los grupos seleccionados.
+                    for SEL_GRU in $SELECCION
+                    do
+                        # Saco los usuarios del grupo.
+                        while IFS=: read etc_nom etc_pass etc_gid etc_usu
+                        do
+                            if [ "$SEL_GRU" = "$etc_nom" ]; then
+                                if [ "$etc_usu" = "" ]; then
+                                    LISTA_USU=$etc_nom
+                                else
+                                    LISTA_USU=$(echo $etc_usu|tr "," " ")
+                                fi
+                            fi
+                        done</etc/group
+                        # Recorro los usuarios para crear sus configuraciones.
+                        for SEL_USU in $LISTA_USU
+                        do
+                            # Compruebo si el usuario tiene una configuración.
+                            if [ `cat $BACKUP/.backup.conf|grep $SEL_USU` ]; then
+                                question=`echo -e "Ya existe una configuración para $SEL_USU.\n¿Desea modificarla?"`
+                                zen_question
+                                if [ $? -eq 0 ]; then
+                                    modificar_confi
+                                fi
+                            else
+                                crear_confi
+                            fi
+                        done
+                    done
+                fi
             ;;
             4)
                 # Modificar configuración para uno o varios usuarios.
-                # Muestro los usuarios que ya tienen configuración.
                 SELECCION=$(menu_selec_multi "Modificar configuración para uno o varios usuarios" "Usuario" \
                     `while IFS=: read ARCH_USU ARCH_GRU ARCH_COP ARCH_DIA
                     do
                         echo $ARCH_USU
                     done<$BACKUP/.backup.conf`)
-
-                # Recorro los usuarios seleccionados.
-                for SEL_USU in $SELECCION
-                do
-                    SEL_GRU=$SEL_USU  
-                    modificar_confi
-                done
+                if [ $? -eq 0 -a "$SELECCION" != "" ]; then
+                    for SEL_USU in $SELECCION
+                    do
+                        SEL_GRU=$SEL_USU  
+                        modificar_confi
+                    done
+                fi
             ;;
             5)
                 # Modificar configuración para uno o varios grupos.
-                # Muestro los grupos que ya tienen configuración.
                 SELECCION=$(menu_selec_multi "Modificar configuración para uno o varios grupos" "Grupo" \
                     `while IFS=: read ARCH_USU ARCH_GRU ARCH_COP ARCH_DIA
                     do
                         echo $ARCH_GRU
                     done<$BACKUP/.backup.conf`)
-
-                #Recorro los grupos seleccionados
-                for SEL_GRU in $SELECCION
-                do
-                    # Saco los usuarios del grupo.
-                    while IFS=: read etc_nom etc_pass etc_gid etc_usu
+                if [ $? -eq 0 -a "$SELECCION" != "" ]; then
+                    #Recorro los grupos seleccionados
+                    for SEL_GRU in $SELECCION
                     do
-                        if [ "$SEL_GRU" = "$etc_nom" ]; then
-                            if [ "$etc_usu" = "" ]; then
-                                LISTA_USU=$etc_nom
-                            else
-                                LISTA_USU=$(echo $etc_usu|tr "," " ")
+                        # Saco los usuarios del grupo.
+                        while IFS=: read etc_nom etc_pass etc_gid etc_usu
+                        do
+                            if [ "$SEL_GRU" = "$etc_nom" ]; then
+                                if [ "$etc_usu" = "" ]; then
+                                    LISTA_USU=$etc_nom
+                                else
+                                    LISTA_USU=$(echo $etc_usu|tr "," " ")
+                                fi
                             fi
-                        fi
-                    done</etc/group
-                    # Recorro los usuarios para modificar sus configuraciones.
-                    for SEL_USU in $LISTA_USU
-                    do
-                        modificar_confi
+                        done</etc/group
+                        for SEL_USU in $LISTA_USU
+                        do
+                            modificar_confi
+                        done
                     done
-                done
+                fi
             ;;
             6)
                 # Borrar configuraciones.
@@ -889,39 +870,39 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                 1)
                     # Seleccionar configuraciones.
                     SELECCION=$(visualizar_confi)
-                    
-                    # Recorro las configuraciones seleccionadas para borrarlas.
-                    for CONF in $SELECCION
-                    do
-                        CONF_ACTUAL=`cat $BACKUP/.backup.conf|grep $CONF`
-                        sed -i "/$CONF_ACTUAL/d" $BACKUP/.backup.conf
-                    done
+                    if [ $? -eq 0 -a "$SELECCION" != "" ]; then
+                        for CONF in $SELECCION
+                        do
+                            CONF_ACTUAL=`cat $BACKUP/.backup.conf|grep $CONF`
+                            sed -i "/$CONF_ACTUAL/d" $BACKUP/.backup.conf
+                        done
+                    fi
                 ;;
                 2)
                     # Introducir nombre de usuario.
                     SEL_USU=$(zen_forms "Borrar configuración" "Rellena el campo" "Usuario")
-                    
-                    # Recorro el archivo para borrar el usuario introducido.
-                    while IFS=: read ARCH_USU ARCH_GRU ARCH_COP ARCH_DIA
-                    do
-                        if [ "$ARCH_USU" = "$SEL_USU" ]; then 
-                            CONF_ACTUAL=`cat $BACKUP/.backup.conf|grep $ARCH_USU`
-                            sed -i "/$CONF_ACTUAL/d" $BACKUP/.backup.conf
-                        fi
-                    done<$BACKUP/.backup.conf
+                    if [ $? -eq 0 -a "$SEL_USU" != "" ]; then
+                        while IFS=: read ARCH_USU ARCH_GRU ARCH_COP ARCH_DIA
+                        do
+                            if [ "$ARCH_USU" = "$SEL_USU" ]; then 
+                                CONF_ACTUAL=`cat $BACKUP/.backup.conf|grep $ARCH_USU`
+                            s   ed -i "/$CONF_ACTUAL/d" $BACKUP/.backup.conf
+                            fi
+                        done<$BACKUP/.backup.conf
+                    fi
                 ;;
                 3)
                     # Introducir nombre de grupo.
                     SEL_GRU=$(zen_forms "Borrar configuración" "Rellena el campo" "Grupo")
-
-                    # Recorro el archivo para borrar el grupo introducido.
-                    while IFS=: read ARCH_USU ARCH_GRU ARCH_COP ARCH_DIA
-                    do
-                        if [ "$ARCH_GRU" = "$SEL_GRU" ]; then 
-                            CONF_ACTUAL=`cat $BACKUP/.backup.conf|grep $ARCH_USU`
-                            sed -i "/$CONF_ACTUAL/d" $BACKUP/.backup.conf
-                        fi
-                    done<$BACKUP/.backup.conf   
+                    if [ $? -eq 0 -a "$SEL_GRU" != "" ]; then
+                        while IFS=: read ARCH_USU ARCH_GRU ARCH_COP ARCH_DIA
+                        do
+                            if [ "$ARCH_GRU" = "$SEL_GRU" ]; then 
+                                CONF_ACTUAL=`cat $BACKUP/.backup.conf|grep $ARCH_USU`
+                                sed -i "/$CONF_ACTUAL/d" $BACKUP/.backup.conf
+                            fi
+                        done<$BACKUP/.backup.conf   
+                    fi
                 ;;
                 esac
             ;;
@@ -938,7 +919,6 @@ fi
 
 # Ejecución automática del script.
 if [ $0 = "$HOME/bin/autobackup.sh" ]; then
-
     typeset -i DD
     typeset -i MM
     typeset -i YY
@@ -954,51 +934,41 @@ if [ $0 = "$HOME/bin/autobackup.sh" ]; then
     # Recorro el archivo de configuración.
     while IFS=: read ARCH_USU ARCH_GRU ARCH_COP ARCH_DIA
     do
-        echo "ARCH_USU: $ARCH_USU ARCH_GRU: $ARCH_GRU ARCH_COP: $ARCH_COP ARCH_DIA: $ARCH_DIA"
         usuario=$ARCH_USU
-        if [ !-d "$BACKUP/$usuario" ]; then
-            mkdir $BACKUP/$usuario
-        fi
+        # Compruebo que el usuario tenga carpeta de almacenamiento.
+        directorio
         ALMACENADAS=`ls -1 $BACKUP/$usuario|wc -l`
+        # Realizo la primera copia en caso de no tener ninguna.
         if [ $ALMACENADAS -eq 0 ]; then
             crear_copia
         fi
+
         ULT_COP=`ls -1t $BACKUP/$usuario|head -1`
-        
         # Días de la última copia.
         FEC_COP=`echo $ULT_COP|cut -d"_" -f3`
         DD=`echo $FEC_COP|cut -d"-" -f1`
         MM=(`echo $FEC_COP|cut -d"-" -f2`-1)*30
         YY=`echo $FEC_COP|cut -d"-" -f3`*365
         NUM_DIAS_COP=$DD+$MM+$YY
-
         # Días de la fecha actual.
         DD=`echo $FECHA|cut -d"-" -f1`
         MM=(`echo $FECHA|cut -d"-" -f2`-1)*30
         YY=`echo $FECHA|cut -d"-" -f3`*365
         NUM_DIAS_ACT=$DD+$MM+$YY
-
         # Días transcurridos desde la última copia.
         DIF=$NUM_DIAS_ACT-$NUM_DIAS_COP
 
         # Compruebo que la diferencia de días concuerde con la configuración del usuario.
         if [ $DIF -ge $ARCH_DIA ]; then
             crear_copia
-        else
-            if [ $ALMACENADAS -lt $ARCH_COP ]; then 
-                crear_copia
-            fi
         fi
-
         # Compruebo que el número de copias almacenadas concuerde con la configuración del usuario.
         if [ $ALMACENADAS -gt $ARCH_COP ]; then
             # Saco la copia más antigua para borrarla.
             BORR_COP=`ls -1t $BACKUP/$usuario|tail -1`
-            sudo rm -r $BACKUP/$usuario/$BORR_COP
-            generar_log borrar
+            borrar_copia
         fi
     done<$BACKUP/.backup.conf
-
 fi
 
 if [ -f temporal ]; then
