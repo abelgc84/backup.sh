@@ -8,7 +8,7 @@ fi
 # Ruta donde estarán las copias de seguridad.
 BACKUP=$HOME/backup
 
-# Usuarios y grupos del sistema
+# Usuarios y grupos del sistema.
 USUARIOS=" "
 while IFS=: read etc_nom etc_pas etc_uid etc_gui etc_gru etc_hom
 do
@@ -24,7 +24,7 @@ do
     fi
 done</etc/group
 
-# Fecha actual, formato dd-mm-yy
+# Fecha actual, formato dd-mm-yy.
 FECHA=`date +%d-%m-%y`
 
 # Salida del menú principal.
@@ -230,7 +230,6 @@ modificar_confi () {
         fi
     fi
 }
-
 
 # Ejecución manual del script.
 if [ $0 = "$HOME/bin/backup.sh" ]; then
@@ -545,7 +544,7 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                         echo $usuario|cut -d"/" -f5
                     done`)
                 if [ $? -eq 0 -a "$SELECCION" != "" ]; then
-                    # Recorro los usuarios seleccionados
+                    # Recorro los usuarios seleccionados.
                     for usuario in $SELECCION
                     do
                      # Pido las copias que se quieran borrar.
@@ -572,7 +571,6 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
             ;;
             2)
                 # Borrar copia de seguridad de uno o varios grupos.
-                # Muestro los grupos.
                 SELECCION=$(menu_selec_multi "Grupos del sistema" "Grupos" \
                 `echo $GRUPOS`)
                 if [ $? -eq 0 -a "$SELECCION" != "" ]; then
@@ -612,7 +610,7 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                                             done
                                         fi
                                     else
-                                        notification=`echo -e "El usuario" $usuario "del grupo" $grupo "\nno tiene ninguna copia almacenada."`
+                                        notification=`echo -e "El usuario $usuario del grupo $grupo \nno tiene ninguna copia almacenada."`
                                         zen_notification
                                     fi
                                 done
@@ -838,7 +836,7 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                         echo $ARCH_GRU
                     done<$BACKUP/.backup.conf`)
                 if [ $? -eq 0 -a "$SELECCION" != "" ]; then
-                    #Recorro los grupos seleccionados
+                    #Recorro los grupos seleccionados.
                     for SEL_GRU in $SELECCION
                     do
                         # Saco los usuarios del grupo.
@@ -943,6 +941,7 @@ if [ $0 = "$HOME/bin/autobackup.sh" ]; then
             crear_copia
         fi
 
+        # Calculo los días transcurridos desde la última copia, por simplificar todos los meses los cuento con 30 días.
         ULT_COP=`ls -1t $BACKUP/$usuario|head -1`
         # Días de la última copia.
         FEC_COP=`echo $ULT_COP|cut -d"_" -f3`
@@ -962,7 +961,8 @@ if [ $0 = "$HOME/bin/autobackup.sh" ]; then
         if [ $DIF -ge $ARCH_DIA ]; then
             crear_copia
         fi
-        # Compruebo que el número de copias almacenadas concuerde con la configuración del usuario.
+        #  Compruebo que el número de copias almacenadas concuerde con la configuración del usuario.
+        ALMACENADAS=`ls -1 $BACKUP/$usuario|wc -l`
         if [ $ALMACENADAS -gt $ARCH_COP ]; then
             # Saco la copia más antigua para borrarla.
             BORR_COP=`ls -1t $BACKUP/$usuario|tail -1`
