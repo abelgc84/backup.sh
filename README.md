@@ -21,8 +21,6 @@ El siguiente documento técnico describe un script Bash diseñado para la gesti�
 
 # Estructura del Script.
 
-El script está organizado en varias secciones. Las secciones más relevantes son:
-
 ## Menús Interactivos.
 
 El script utiliza una estructura de menú interactiva para facilitar la navegación y selección de opciones por parte del usuario. Los menús están organizados jerárquicamente y abarcan las diferentes operaciones que se pueden llevar a cabo.
@@ -61,10 +59,11 @@ El script proporciona una solución integral para el administrador de sistemas e
 
 * Revisar y entender el script completamente antes de su uso.
 * Revisar las configuraciones predeterminadas para adaptarlas a las necesidades específicas de cada sistema.
-* Modificar el archivo `sudoers` para excluir al script de las peticiones de contraseña añadiendo:
+* Modificar el archivo `sudoers` para excluir al script y/o al usuario de las peticiones de contraseña añadiendo:
 ```
 usuario    ALL=(ALL) NOPASSWD: /ruta/al/script/backup.sh
 usuario    ALL=(ALL) NOPASSWD: /ruta/al/script/autobackup.sh
+usuario    ALL=(ALL) NOPASSWD:usuario
 ```
 La utilización de la ejecución automática sin estas modificaciones puede provocar problemas de inicio de sesión.
 
