@@ -140,7 +140,7 @@ sobreescribir () {
     zenity --title "La copia con fecha $FECHA para $usuario ya existe" \
         --width="500" \
         --question \
-        --text "¿Desea sobreescribirla?"
+        --text "¿Desea sobrescribirla?"
 }
 directorio () {
     if [ ! -d "$BACKUP/$usuario" ]; then
@@ -765,7 +765,8 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                     do
                         SEL_GRU=$SEL_USU  
                         # Compruebo si el usuario tiene una configuración.
-                        if [ `cat $BACKUP/.backup.conf|grep $SEL_USU` ]; then
+                        cat $BACKUP/.backup.conf|grep $SEL_USU>temporal
+                        if [ $? -eq 0 ]; then
                             question=`echo -e "Ya existe una configuración para $SEL_USU.\n¿Desea modificarla?"`
                             zen_question
                             if [ $? -eq 0 ]; then
@@ -800,7 +801,8 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                         for SEL_USU in $LISTA_USU
                         do
                             # Compruebo si el usuario tiene una configuración.
-                            if [ `cat $BACKUP/.backup.conf|grep $SEL_USU` ]; then
+                            cat $BACKUP/.backup.conf|grep $SEL_USU>temporal
+                            if [ $? -eq 0 ]; then
                                 question=`echo -e "Ya existe una configuración para $SEL_USU.\n¿Desea modificarla?"`
                                 zen_question
                                 if [ $? -eq 0 ]; then
