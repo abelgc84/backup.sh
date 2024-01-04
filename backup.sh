@@ -180,7 +180,7 @@ borrar_copia () {
     fi
 }
 visualizar_confi () {
-    zenity --title "Configuraciones existentes" \
+    zenity --title "$1" \
         --width="500" \
         --height="500" \
         --list \
@@ -599,8 +599,6 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                                         cop_alm=`ls $BACKUP/$usuario/|wc -l`
                                         if [ $cop_alm -gt 0 ]; then
                                             BORR_COP=`ls -1t $BACKUP/$usuario|head -1`
-                                            echo "DEBUG BORR_COP: $BORR_COP"
-                                            echo "DEBUG usuario: $usuario"
                                             borrar_copia
                                             notification=`echo "Copia $BORR_COP borrada."`
                                             zen_notification
@@ -724,6 +722,8 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
         ;;
         5)
             # Congigurar ejecución automática.
+
+            # Creación del archivo .backup.conf 
             # Estructura del archivo: usuario:grupo:número_copias_guardadas:días_entre_copias
             if [ ! -f $BACKUP/.backup.conf ]; then
                 touch $BACKUP/.backup.conf
@@ -749,7 +749,7 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
             case $SUBMENU5 in
             1)
                 # Visualizar configuraciones existentes.
-                visualizar_confi
+                visualizar_confi "Configuraciones existentes"
             ;;
             2)
                 # Crear configuración para uno o varios usuarios.
@@ -865,7 +865,7 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                 case $SUBMENU5_6 in
                 1)
                     # Seleccionar configuraciones.
-                    SELECCION=$(visualizar_confi)
+                    SELECCION=$(visualizar_confi "Seleccione una o varias configuraciones")
                     if [ $? -eq 0 -a "$SELECCION" != "" ]; then
                         for CONF in $SELECCION
                         do
@@ -933,8 +933,8 @@ if [ $0 = "$HOME/bin/autobackup.sh" ]; then
         usuario=$ARCH_USU
         # Compruebo que el usuario tenga carpeta de almacenamiento.
         directorio
-        ALMACENADAS=`ls -1 $BACKUP/$usuario|wc -l`
         # Realizo la primera copia en caso de no tener ninguna.
+        ALMACENADAS=`ls -1 $BACKUP/$usuario|wc -l`
         if [ $ALMACENADAS -eq 0 ]; then
             crear_copia
         fi
