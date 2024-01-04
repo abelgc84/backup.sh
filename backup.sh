@@ -160,6 +160,9 @@ restaurar_copia () {
 }
 devolver_propiedad () {
     case $1 in
+    home)
+        sudo chown -R $REST_USU:$REST_USU /home/$REST_USU
+    ;;
     usuario)
         sudo chown -R $REST_USU:$REST_USU $REST_RUT
     ;;
@@ -343,48 +346,64 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                             echo $archivo|cut -d"/" -f6
                         done`)
                     if [ $? -eq 0 -a "$REST_COP" != "" ]; then
-                        # Bucle para pedir la ruta.
-                        SALIDA_RUT=0
-                        while [ $SALIDA_RUT -eq 0 ]
-                        do
-                            REST_RUT=$(zen_forms "Restaurar copia de seguridad de $REST_USU" "Introduce la ruta absoluta." "Ruta") 
-                            if [ $? -eq 1 ]; then
-                                break
-                            fi 
-                            # Verifico que la ruta de destino sea absoluta.
-                            if [ "`echo $REST_RUT|cut -c1`" != "/" ]; then
-                                error="La ruta $REST_RUT no es absoluta."
-                                zen_error
-                            else
-                                # Compruebo que el directorio de destino exista.
-                                if [ ! -d "$REST_RUT" ]; then
-                                    question="La ruta $REST_RUT no existe. ¿Desea crearla?"
-                                    zen_question
-                                    if [ $? -eq 0 ]; then
-                                        sudo mkdir -p $REST_RUT
-                                        if [ $? -eq 0 ]; then
+                        SUBMENU_RUTA=$(mostrar_menu "Restaurar copia de seguridad" "Opción" "Menú" \
+                            1 "Restaurar la copia en el directorio home." \
+                            2 "Seleccionar una ruta de destino.")
+                        if [ $? -eq 0 -a "$SUBMENU_RUTA" != "" ]; then
+                            case $SUBMENU_RUTA in
+                            1)
+                                REST_RUT="/"
+                                restaurar_copia
+                                devolver_propiedad home
+                                notification="Copia de seguridad de $REST_USU restaurada."
+                                zen_notification
+                            ;;
+                            2)
+                                # Bucle para pedir la ruta.
+                                SALIDA_RUT=0
+                                while [ $SALIDA_RUT -eq 0 ]
+                                do
+                                    REST_RUT=$(zen_forms "Restaurar copia de seguridad de $REST_USU" "Introduce la ruta absoluta." "Ruta") 
+                                    if [ $? -eq 1 ]; then
+                                        break
+                                    fi 
+                                    # Verifico que la ruta de destino sea absoluta.
+                                    if [ "`echo $REST_RUT|cut -c1`" != "/" ]; then
+                                        error="La ruta $REST_RUT no es absoluta."
+                                        zen_error
+                                    else
+                                        # Compruebo que el directorio de destino exista.
+                                        if [ ! -d "$REST_RUT" ]; then
+                                            question="La ruta $REST_RUT no existe. ¿Desea crearla?"
+                                            zen_question
+                                            if [ $? -eq 0 ]; then
+                                                sudo mkdir -p $REST_RUT
+                                                if [ $? -eq 0 ]; then
+                                                    restaurar_copia
+                                                    devolver_propiedad usuario
+                                                    notification="Copia de seguridad de $REST_USU restaurada."
+                                                    zen_notification
+                                                fi
+                                                SALIDA_RUT=1
+                                            else
+                                                question="¿Quiere introducir otra ruta?"
+                                                zen_question
+                                                if [ $? -eq 1 ]; then
+                                                    SALIDA_RUT=1
+                                                fi
+                                            fi
+                                        else
                                             restaurar_copia
                                             devolver_propiedad usuario
                                             notification="Copia de seguridad de $REST_USU restaurada."
                                             zen_notification
-                                        fi
-                                        SALIDA_RUT=1
-                                    else
-                                        question="¿Quiere introducir otra ruta?"
-                                        zen_question
-                                        if [ $? -eq 1 ]; then
                                             SALIDA_RUT=1
                                         fi
                                     fi
-                                else
-                                    restaurar_copia
-                                    devolver_propiedad usuario
-                                    notification="Copia de seguridad de $REST_USU restaurada."
-                                    zen_notification
-                                    SALIDA_RUT=1
-                                fi
-                            fi
-                        done
+                                done
+                            ;;
+                            esac
+                        fi
                     fi
                 fi
             ;;
@@ -393,135 +412,120 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                 REST_GRU=$(menu_selec "Restaurar copia de seguridad de un grupo" "Grupo" \
                     `echo $GRUPOS`)
                 if [ $? -eq 0 -a "$REST_GRU" != "" ]; then
-                    # Saco la lista de usuarios perteneciente al grupo.
-                    while IFS=: read etc_nom etc_pass etc_gid etc_usu
-                    do
-                        if [ "$REST_GRU" = "$etc_nom" ]; then
-                            if [ "$etc_usu" = "" ]; then
-                                USU_GRU=$etc_nom
-                            else
-                                USU_GRU=$(echo $etc_usu|tr "," " ")
-                            fi
-                            # Recorro los usuarios para restaurar sus copias.
-                            for REST_USU in $USU_GRU
-                            do
-                                info=`echo "Restaurando copia para" $REST_USU". Seleccione la copia."`
-                                zen_info
-                                REST_COP=$(menu_selec "Restaurar copia de seguridad de $REST_USU" "Copias almacenadas" \
-                                    `for archivo in $BACKUP/$REST_USU/*
-                                    do 
-                                        echo $archivo|cut -d"/" -f6
-                                    done`)
-                                if [ $? -eq 0 -a "$REST_COP" != "" ]; then
-                                    # Bucle para pedir la ruta.
-                                    SALIDA_RUT=0
-                                    while [ $SALIDA_RUT -eq 0 ]
-                                    do
-                                        REST_RUT=$(zen_forms "Restaurar copia de seguridad de $REST_USU" "Introduce la ruta absoluta." "Ruta")
-                                        if [ $? -eq 1 ]; then
-                                            break
-                                        fi 
-                                        if [ "`echo $REST_RUT|cut -c1`" != "/" ]; then
-                                            error="La ruta $REST_RUT no es absoluta."
-                                            zen_error
+                    question=`echo -e "Se restaurará la última copia de seguridad para todos los usuarios del grupo $REST_GRU.\n¿Desea continuar?"`
+                    zen_question
+                    if [ $? -eq 0 ]; then
+                        SUBMENU_RUTA=$(mostrar_menu "Restaurar copia de seguridad" "Opción" "Menú" \
+                            1 "Restaurar la copia en el directorio home." \
+                            2 "Seleccionar una ruta de destino.")
+                        if [ $? -eq 0 -a "$SUBMENU_RUTA" != "" ]; then
+                            case $SUBMENU_RUTA in
+                            1)
+                                # Saco la lista de usuarios perteneciente al grupo.
+                                while IFS=: read etc_nom etc_pass etc_gid etc_usu
+                                do
+                                    if [ "$REST_GRU" = "$etc_nom" ]; then
+                                        if [ "$etc_usu" = "" ]; then
+                                            USU_GRU=$etc_nom
                                         else
-                                            if [ ! -d "$REST_RUT" ]; then
-                                                question="La ruta $REST_RUT no existe. ¿Desea crearla?"
-                                                zen_question
-                                                if [ $? -eq 0 ]; then
-                                                    sudo mkdir -p $REST_RUT
-                                                    if [ $? -eq 0 ]; then
-                                                        restaurar_copia
-                                                        devolver_propiedad grupo
-                                                        notification="Copia de seguridad de $REST_USU restaurada."
-                                                        zen_notification
-                                                    fi
-                                                    SALIDA_RUT=1
-                                                else
-                                                    question="¿Quiere introducir otra ruta?"
-                                                    zen_question
-                                                    if [ $? -eq 1 ]; then
-                                                        SALIDA_RUT=1
-                                                    fi
-                                                fi
-                                            else
-                                                restaurar_copia
-                                                devolver_propiedad grupo
-                                                notification="Copia de seguridad de $REST_USU restaurada."
-                                                zen_notification
+                                            USU_GRU=$(echo $etc_usu|tr "," " ")
+                                        fi
+                                        # Recorro los usuarios para restaurar sus copias.
+                                        for REST_USU in $USU_GRU
+                                        do
+                                            # Saco la última copia almacenada
+                                            REST_COP=`ls -1t $BACKUP/$REST_USU|head -1`
+                                            REST_RUT=/
+                                            restaurar_copia
+                                            devolver_propiedad home
+                                            notification="Copia de seguridad de $REST_USU restaurada."
+                                            zen_notification                      
+                                        done
+                                    fi
+                                done</etc/group
+                            ;;
+                            2)
+                                # Bucle para pedir la ruta
+                                SALIDA_RUT=0
+                                while [ $SALIDA_RUT -eq 0 ]
+                                do
+                                    REST_RUT=$(zen_forms "Restaurar copia de seguridad de $REST_GRU" "Introduce la ruta absoluta." "Ruta")
+                                    if [ $? -eq 1 ]; then
+                                        break
+                                    fi
+                                    if [ "`echo $REST_RUT|cut -c1`" != "/" ]; then
+                                        error=`echo "La ruta $REST_RUT no es abosulta."`
+                                        zen_error
+                                    else
+                                        if [ ! -d "$REST_RUT" ]; then
+                                            question=`echo "La ruta $REST_RUT no existe. ¿Desea crearla?"`
+                                            zen_question
+                                            if [ $? -eq 0 ]; then
+                                                sudo mkdir -p $REST_RUT
                                                 SALIDA_RUT=1
+                                            else
+                                                question=`echo "¿Quiere introducir otra ruta?"`
+                                                zen_question
+                                                if [ $? -eq 1 ]; then
+                                                    SALIDA_RUT=1
+                                                fi
                                             fi
                                         fi
-                                    done
-                                fi                        
-                            done
+                                    fi
+                                done
+                                # Saco la lista de usuarios perteneciente al grupo.
+                                while IFS=: read etc_nom etc_pass etc_gid etc_usu
+                                do
+                                    if [ "$REST_GRU" = "$etc_nom" ]; then
+                                        if [ "$etc_usu" = "" ]; then
+                                            USU_GRU=$etc_nom
+                                        else
+                                            USU_GRU=$(echo $etc_usu|tr "," " ")
+                                        fi
+                                        # Recorro los usuarios para restaurar sus copias.
+                                        for REST_USU in $USU_GRU
+                                        do
+                                            REST_COP=`ls -1t $BACKUP/$REST_USU|head -1`
+                                            restaurar_copia
+                                            devolver_propiedad grupo
+                                            notification="Copia de seguridad de $REST_USU restaurada."
+                                            zen_notification                                                        
+                                        done
+                                    fi
+                                done</etc/group
+                            ;;
+                            esac
                         fi
-                    done</etc/group
+                    fi
                 fi
             ;;
             3)
                 # Restaurar copia de una fecha.
                 REST_FEC=$(zen_calendar "Restaurar copia de seguridad")
                 if [ $? -eq 0 -a "$REST_FEC" != "" ]; then
-                    REST_FEC=`echo $REST_FEC|tr "/" "-"`
-                    # Recorro las carpetas de almacenamiento de cada usuario.
-                    lista=""
-                    for usuario in $BACKUP/*
-                    do
-                        # Busco para cada usuario una copia con la fecha seleccionada.
-                        for copia in $usuario/*
+                    question=`echo -e "Se restaurarán todas las copias de seguridad almacenadas con fecha $REST_FEC.\n¿Desea continuar?"`
+                    zen_question
+                    if [ $? -eq 0 ]; then
+                        REST_FEC=`echo $REST_FEC|tr "/" "-"`
+                        # Recorro las carpetas de almacenamiento de cada usuario.
+                        lista=""
+                        for usuario in $BACKUP/*
                         do
-                            # Almaceno las copias encontradas.
-                            lista="$lista `echo $copia|grep $REST_FEC|cut -d"/" -f6`"
+                            # Busco para cada usuario una copia con la fecha seleccionada.
+                            for copia in $usuario/*
+                            do
+                                lista="$lista `echo $copia|grep $REST_FEC|cut -d"/" -f6`"
+                            done
                         done
-                    done
-                    # Muestro las copias para elegir cuáles se quieren restaurar.
-                    SELECCION=$(menu_selec_multi "Restaurar copia de seguridad" "Copia" \
-                        `echo $lista`)
-                    if [ $? -eq 0 -a "$REST_FEC" != "" ]; then
-                        # Recorro las copias seleccionadas para restaurarlas.
-                        for REST_COP in $SELECCION
+                        # Recorro las copias para restaurarlas.
+                        for REST_COP in $lista
                         do
                             REST_USU=`echo $REST_COP|cut -d"_" -f2`
-                            SALIDA_RUT=0
-                            while [ $SALIDA_RUT -eq 0 ]
-                            do
-                                REST_RUT=$(zen_forms "Restaurar copia de seguridad de $REST_USU" "Introduce la ruta absoluta." "Ruta")
-                                if [ $? -eq 1 ]; then
-                                    break
-                                fi 
-                                if [ "`echo $REST_RUT|cut -c1`" != "/" ]; then
-                                    error="La ruta introducida no es absoluta."
-                                    zen_error
-                                else
-                                    if [ ! -d "$REST_RUT" ]; then
-                                        question="La ruta elegida no existe. ¿Desea crearla?"
-                                        zen_question
-                                        if [ $? -eq 0 ]; then
-                                            sudo mkdir -p $REST_RUT
-                                            if [ $? -eq 0 ]; then
-                                                restaurar_copia
-                                                devolver_propiedad usuario
-                                                notification="Copia de seguridad de $REST_USU restaurada."
-                                                zen_notification
-                                            fi
-                                            SALIDA_RUT=1
-                                        else
-                                            question="¿Quiere introducir otra ruta?"
-                                            zen_question
-                                            if [ $? -eq 1 ]; then
-                                                SALIDA_RUT=1
-                                            fi
-                                        fi
-                                    else
-                                        restaurar_copia
-                                        devolver_propiedad usuario
-                                        notification="Copia de seguridad de $REST_USU restaurada."
-                                        zen_notification
-                                        SALIDA_RUT=1
-                                    fi
-                                fi
-                            done
+                            REST_RUT=/ 
+                            restaurar_copia
+                            devolver_propiedad home
+                            notification="Copia de seguridad de $REST_USU restaurada."
+                            zen_notification
                         done
                     fi
                 fi
@@ -554,17 +558,17 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                             echo $copia|cut -d"/" -f6
                         done`)
                         if [ $? -eq 0 -a "$SEL_COP" != "" ]; then
-                            # Recorro las copias para borrarlas.
-                            for BORR_COP in $SEL_COP
-                            do
-                                question="¿Esta seguro que quiere borrar $BORR_COP?"
-                                zen_question
-                                if [ $? -eq 0 ]; then
+                            question=`echo -e "Se borraran las copias: $SEL_COP\n¿Desea continuar?"`
+                            zen_question
+                            if [ $? -eq 0 ]; then
+                                # Recorro las copias para borrarlas.
+                                for BORR_COP in $SEL_COP
+                                do
                                     borrar_copia
-                                    notification=`echo "Copia" $BORR_COP "borrada."`
+                                    notification=`echo "Copia $BORR_COP borrada."`
                                     zen_notification
-                                fi
-                            done
+                                done
+                            fi
                         fi
                     done
                 fi
@@ -574,75 +578,67 @@ if [ $0 = "$HOME/bin/backup.sh" ]; then
                 SELECCION=$(menu_selec_multi "Grupos del sistema" "Grupos" \
                 `echo $GRUPOS`)
                 if [ $? -eq 0 -a "$SELECCION" != "" ]; then
-                    for grupo in $SELECCION
-                    do
-                        # Saco la lista de usuarios perteneciente a cada grupo y los recorro para borrar las copias.
-                        while IFS=: read etc_nom etc_pass etc_gid etc_usu
+                    question=`echo -e "Se borraran la última copia almacenada para los grupos: $SELECCION\n¿Desea continuar?"`
+                    zen_question
+                    if [ $? -eq 0 ]; then
+                        for grupo in $SELECCION
                         do
-                            if [ "$grupo" = "$etc_nom" ]; then
-                                if [ "$etc_usu" = "" ]; then
-                                    SEL_USU=$etc_nom
-                                else
-                                    SEL_USU=$(echo $etc_usu|tr "," " ")
-                                fi
-                                # Recorro los usuarios.
-                                for usuario in $SEL_USU
-                                do
-                                    # Compruebo que el usuario tenga copias almacenadas.
-                                    cop_alm=`ls $BACKUP/$usuario/|wc -l`
-                                    if [ $cop_alm -gt 0 ]; then
-                                        SEL_COP=$(menu_selec_multi "Copias almacenadas para $usuario" "Copias" \
-                                        `for copia in $BACKUP/$usuario/*
-                                        do
-                                        echo $copia|cut -d"/" -f6
-                                        done`)
-                                        if [ $? -eq 0 -a "$SEL_COP" != "" ]; then
-                                            # Recorro las copias para borrarlas.
-                                            for BORR_COP in $SEL_COP
-                                            do
-                                                question="¿Esta seguro que quiere borrar $BORR_COP?"
-                                                zen_question
-                                                if [ $? -eq 0 ]; then
-                                                    borrar_copia
-                                                    notification=`echo "Copia" $BORR_COP "borrada."`
-                                                    zen_notification
-                                                fi
-                                            done
-                                        fi
+                            # Saco la lista de usuarios perteneciente a cada grupo.
+                            while IFS=: read etc_nom etc_pass etc_gid etc_usu
+                            do
+                                if [ "$grupo" = "$etc_nom" ]; then
+                                    if [ "$etc_usu" = "" ]; then
+                                        SEL_USU=$etc_nom
                                     else
-                                        notification=`echo -e "El usuario $usuario del grupo $grupo \nno tiene ninguna copia almacenada."`
-                                        zen_notification
+                                        SEL_USU=$(echo $etc_usu|tr "," " ")
                                     fi
-                                done
-                            fi
-                        done</etc/group
-                    done
+                                    # Recorro los usuarios.
+                                    for usuario in $SEL_USU
+                                    do
+                                        # Compruebo que el usuario tenga copias almacenadas.
+                                        cop_alm=`ls $BACKUP/$usuario/|wc -l`
+                                        if [ $cop_alm -gt 0 ]; then
+                                            BORR_COP=`ls -1t $BACKUP/$usuario|head -1`
+                                            echo "DEBUG BORR_COP: $BORR_COP"
+                                            echo "DEBUG usuario: $usuario"
+                                            borrar_copia
+                                            notification=`echo "Copia $BORR_COP borrada."`
+                                            zen_notification
+                                        else
+                                            notification=`echo -e "El usuario $usuario del grupo $grupo \nno tiene ninguna copia almacenada."`
+                                            zen_notification
+                                        fi
+                                    done
+                                fi
+                            done</etc/group
+                        done
+                    fi
                 fi
             ;;
             3)
                 # Borrar copia de seguridad de una fecha.
                 BORR_FEC=$(zen_calendar "Restaurar copia de seguridad.")
                 if [ $? -eq 0 -a "$BORR_FEC" != "" ]; then
-                    BORR_FEC=`echo $BORR_FEC|tr "/" "-"`
-
-                    # Recorro las carpetas de almacenamiento de cada usuario.
-                    for usuario in $BACKUP/*
-                    do
-                        # Busco para cada usuario una copia con la fecha seleccionada.
-                        for BORR_COP in $usuario/*
+                    question=`echo -e "Se borrarán todas las copias almacenadas con fecha $BORR_FEC.\n¿Desea continuar?"`
+                    zen_question
+                    if [ $? -eq 0 ]; then
+                        BORR_FEC=`echo $BORR_FEC|tr "/" "-"`
+                        # Recorro las carpetas de almacenamiento de cada usuario.
+                        for usuario in $BACKUP/*
                         do
-                            if [ `echo $BORR_COP|grep $BORR_FEC` ]; then
-                                question="¿Esta seguro que quiere borrar `echo $BORR_COP|cut -d"/" -f6`?"
-                                zen_question
-                                if [ $? -eq 0 ]; then
-                                    sudo rm -r $BORR_COP
-                                    generar_log borrar
-                                    notificacion="Copia `echo $BORR_COP|grep $BORR_FEC` borrada."
+                            # Busco para cada usuario una copia con la fecha seleccionada.
+                            for BORR_COP in $usuario/*
+                            do
+                                if [ `echo $BORR_COP|grep $BORR_FEC` ]; then
+                                    BORR_COP=`echo $BORR_COP|cut -d"/" -f6`
+                                    usuario=`echo $usuario|cut -d"/" -f5`
+                                    borrar_copia
+                                    notification=`echo "Copia $BORR_COP borrada."`
                                     zen_notification
                                 fi
-                            fi
+                            done
                         done
-                    done
+                    fi
                 fi
             ;;
             esac
