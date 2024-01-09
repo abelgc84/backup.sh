@@ -39,65 +39,21 @@ Se incluye una sección dedicada a la configuración automática de copias de se
 
 El script interactúa con el sistema de archivos para crear, eliminar y manipular directorios y archivos de copias de seguridad. Se utiliza el comando `tar` para la creación de las copias. Todas las acciones relacionadas con las copias de seguridad quedan registradas en el archivo `.backup.log`.  
 La manipulación de las copias de seguridad está definida en sus funciones correspondientes. De este modo durante la ejecución del script solo hay que controlar que las variables que se manejen sean las mismas que en las funciones.
-```
-crear_copia () {
-    mkdir -p $BACKUP/$usuario/copia_${usuario}_${FECHA}
-    DESTINO=$BACKUP/$usuario/copia_${usuario}_${FECHA}/copia_${usuario}_${FECHA}.tar.gz
-    ORIGEN=/home/$usuario
-    sudo tar -czf "$DESTINO" "$ORIGEN"|zenity --title "Creando copia de seguridad." \
-        --width="400" \
-        --text="Copia para $usuario" \
-        --progress \
-        --pulsate \
-        --auto-close \
-        --no-cancel
-    generar_log copiar
-}
 
-restaurar_copia () {
-    ORIGEN=$BACKUP/$REST_USU/$REST_COP/$REST_COP.tar.gz
-    sudo tar -xf $ORIGEN -C $REST_RUT|zenity --title "Restaurando copia de seguridad." \
-        --width="400" \
-        --text="Restaurando $REST_COP" \
-        --progress \
-        --pulsate \
-        --auto-close \
-        --no-cancel
-    generar_log restaurar
-}
+![image](https://github.com/abelgc84/backup.sh/assets/146434908/bcc13b3c-642d-4b5a-a33f-7b388c6ff6d3)
 
-borrar_copia () { 
-    sudo rm -r $BACKUP/$usuario/$BORR_COP
-    generar_log borrar
-    CANT_COP=`ls $BACKUP/$usuario|wc -l`
-    if [ $CANT_COP -eq 0 ]; then
-        sudo rm -r $BACKUP/$usuario
-    fi
-}
-```
+![image](https://github.com/abelgc84/backup.sh/assets/146434908/ada948ae-5294-40da-8c7a-35bb4cb2e8be)
+
+![image](https://github.com/abelgc84/backup.sh/assets/146434908/759e317b-1f5e-4251-abb7-acf83dd04ac8)
 
 Estas funciones hacen una llamada a la función de generar_log, la cual genera un log en función del parámetro que se le haya pasado.
-```
-generar_log () {
-    # Estructura del archivo log: acción:usuario:fecha:ruta_copia
-    case $1 in
-    copiar)
-        echo $1":"$usuario":"$FECHA":"$DESTINO>>$BACKUP/.backup.log
-    ;;
-    restaurar)
-        echo $1":"$REST_USU":"$FECHA":"$ORIGEN>>$BACKUP/.backup.log
-    ;;
-    borrar)
-        echo $1":"$USER":"$FECHA":"$BORR_COP".tar.gz">>$BACKUP/.backup.log
-    ;;
-    esac
-}
-```
+
+![image](https://github.com/abelgc84/backup.sh/assets/146434908/0ead1989-4996-4d35-9e82-a14a6288663c)
 
 ## Interacción con el Usuario.
 
 El script emplea varias funciones para interactuar con el usuario, todas ellas basadas en el comando `zenity`. Estas funciones facilitan la presentación de información y la selección de opciones.  
-Las funciones con zenity funcionan en función de los parámetros que se pasen. Siendo los primeros parámetros los títulos de las ventanas, columnas u otras opciones de la ventana zenity. Y la cadena de parámetros restantes serán los datos que se presenten en la ventana. Por ejemplo la función zenity, y su llamada, para la ventana de menú estándar del script sería así.
+Las funciones con zenity funcionan en relación a los parámetros que se pasen. Siendo los primeros parámetros los títulos de las ventanas, columnas u otras opciones de la ventana zenity. Y la cadena de parámetros restantes serán los datos que se presenten en la ventana. Por ejemplo la función zenity, y su llamada, para la ventana de menú estándar del script sería así.
 ```
 mostrar_menu () {
     titulo="$1"
@@ -128,7 +84,14 @@ Hay muchas más funciones para la creación de ventanas con zenity. Todas tienen
 
 ## Gestión de Configuraciones.
 
-La gestión de configuraciones automáticas se realiza a través de un archivo de configuración `.backup.conf`. Este archivo es utilizado para la ejecución automática de copias de seguridad y almacena información sobre usuarios, grupos, número de copias y días entre copias.
+La gestión de configuraciones automáticas se realiza a través de un archivo de configuración `.backup.conf`. Este archivo es utilizado para la ejecución automática de copias de seguridad y almacena información sobre usuarios, grupos, número de copias y días entre copias.  
+El archivo de configuración se crea al entrar por primera vez en el menú de configuración. Así mismo se crea un enlace simbólico del script y es añadido al archivo .profile, siendo la ejecución del script a través del nombre del enlace lo que desencadenará la ejecución automática.
+
+![image](https://github.com/abelgc84/backup.sh/assets/146434908/dc56bdaf-4602-4109-a3b3-16ae318cb0cd)
+
+Las funciones para crear, o modificar, configuraciones simplemente recogen los datos necesarios a través de formularios zenity y los almacena en el archivo. Teniendo en cuenta que se hayan introducido datos, dando un mensaje de error en caso de haberse saltado alguno de los datos necesarios.
+
+![image](https://github.com/abelgc84/backup.sh/assets/146434908/c1814084-d229-45fe-aed0-ad4e1d75bc21)
 
 # Ejecución Automática.
 
