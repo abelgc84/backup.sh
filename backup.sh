@@ -943,17 +943,11 @@ if [ $0 = "$HOME/bin/autobackup.sh" ]; then
         ULT_COP=`ls -1t $BACKUP/$usuario|head -1`
         # Días de la última copia.
         FEC_COP=`echo $ULT_COP|cut -d"_" -f3`
-        #DD=`echo $FEC_COP|cut -d"-" -f1`
-        #MM=(`echo $FEC_COP|cut -d"-" -f2`-1)*30
-        #YY=`echo $FEC_COP|cut -d"-" -f3`*365
         DD=$(echo "$FEC_COP" | cut -d"-" -f1)
         MM=$(((`echo "$FEC_COP" | cut -d"-" -f2` - 1) * 30))
         YY=$(echo $(echo $FEC_COP | cut -d"-" -f3) \* 365)
         NUM_DIAS_COP=$DD+$MM+$YY
         # Días de la fecha actual.
-        #DD=`echo $FECHA|cut -d"-" -f1`
-        #MM=(`echo $FECHA|cut -d"-" -f2`-1)*30
-        #YY=`echo $FECHA|cut -d"-" -f3`*365
         DD=$(echo "$FECHA" | cut -d"-" -f1)
         MM=$(((`echo "$FECHA" | cut -d"-" -f2` - 1) * 30))
         YY=$(echo $(echo $FECHA | cut -d"-" -f3) \* 365)
