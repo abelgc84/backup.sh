@@ -40,45 +40,24 @@ Se incluye una sección dedicada a la configuración automática de copias de se
 El script interactúa con el sistema de archivos para crear, eliminar y manipular directorios y archivos de copias de seguridad. Se utiliza el comando `tar` para la creación de las copias. Todas las acciones relacionadas con las copias de seguridad quedan registradas en el archivo `.backup.log`.  
 La manipulación de las copias de seguridad está definida en sus funciones correspondientes. De este modo durante la ejecución del script solo hay que controlar que las variables que se manejen sean las mismas que en las funciones.
 
-![image](https://github.com/abelgc84/backup.sh/assets/146434908/bcc13b3c-642d-4b5a-a33f-7b388c6ff6d3)
+![image](https://github.com/abelgc84/backup.sh/assets/146434908/1de33dfc-ad17-4cc6-b4ad-fa8465136581)
 
-![image](https://github.com/abelgc84/backup.sh/assets/146434908/ada948ae-5294-40da-8c7a-35bb4cb2e8be)
+![image](https://github.com/abelgc84/backup.sh/assets/146434908/24a8b047-6053-4697-9f27-f427b1de559b)
 
-![image](https://github.com/abelgc84/backup.sh/assets/146434908/759e317b-1f5e-4251-abb7-acf83dd04ac8)
+![image](https://github.com/abelgc84/backup.sh/assets/146434908/89e7b2c4-8c7a-4353-a9da-a99b6efea51a)
 
 Estas funciones hacen una llamada a la función de generar_log, la cual genera un log en función del parámetro que se le haya pasado.
 
-![image](https://github.com/abelgc84/backup.sh/assets/146434908/0ead1989-4996-4d35-9e82-a14a6288663c)
+![image](https://github.com/abelgc84/backup.sh/assets/146434908/6486d4ae-2853-444b-953e-fa065f786f93)
 
 ## Interacción con el Usuario.
 
 El script emplea varias funciones para interactuar con el usuario, todas ellas basadas en el comando `zenity`. Estas funciones facilitan la presentación de información y la selección de opciones.  
 Las funciones con zenity funcionan en relación a los parámetros que se pasen. Siendo los primeros parámetros los títulos de las ventanas, columnas u otras opciones de la ventana zenity. Y la cadena de parámetros restantes serán los datos que se presenten en la ventana. Por ejemplo la función zenity, y su llamada, para la ventana de menú estándar del script sería así.
-```
-mostrar_menu () {
-    titulo="$1"
-    shift
-    columna1="$1"
-    shift
-    columna2="$1"
-    shift
-    zenity --title "$titulo" \
-           --width="500" \
-           --height="500" \
-           --list \
-           --column "$columna1" \
-           --column "$columna2" \
-           "$@"
-}
 
-MENU=$(mostrar_menu "Backup.sh" "Opción" "Menú" \
-    1 "Crear copia de seguridad." \
-    2 "Restaurar copia de seguridad." \
-    3 "Borrar copia de seguridad." \
-    4 "Visualizar copias de seguridad." \
-    5 "Configurar ejecución automática." \
-    6 "Salir.")
-```
+![image](https://github.com/abelgc84/backup.sh/assets/146434908/aed99975-a9d6-4a9f-abb8-10529b5561fa)
+
+![image](https://github.com/abelgc84/backup.sh/assets/146434908/d830d19e-55ad-4281-8ca7-bb7ec6155634)
 
 Hay muchas más funciones para la creación de ventanas con zenity. Todas tienen un funcionamiento similar, se recomienda revisar la sección inicial del script donde se declaran las funciones para profundizar en ellas.
 
@@ -87,11 +66,11 @@ Hay muchas más funciones para la creación de ventanas con zenity. Todas tienen
 La gestión de configuraciones automáticas se realiza a través de un archivo de configuración `.backup.conf`. Este archivo es utilizado para la ejecución automática de copias de seguridad y almacena información sobre usuarios, grupos, número de copias y días entre copias.  
 El archivo de configuración se crea al entrar por primera vez en el menú de configuración. Así mismo se crea un enlace simbólico del script y es añadido al archivo .profile, siendo la ejecución del script a través del nombre del enlace lo que desencadenará la ejecución automática.
 
-![image](https://github.com/abelgc84/backup.sh/assets/146434908/dc56bdaf-4602-4109-a3b3-16ae318cb0cd)
+![image](https://github.com/abelgc84/backup.sh/assets/146434908/6c70a532-3f5d-4eca-8667-419200b876ab)
 
 Las funciones para crear, o modificar, configuraciones simplemente recogen los datos necesarios a través de formularios zenity y los almacena en el archivo. Teniendo en cuenta que se hayan introducido datos, dando un mensaje de error en caso de haberse saltado alguno de los datos necesarios.
 
-![image](https://github.com/abelgc84/backup.sh/assets/146434908/c1814084-d229-45fe-aed0-ad4e1d75bc21)
+![image](https://github.com/abelgc84/backup.sh/assets/146434908/63356e36-5239-4169-936c-397441e8b39b)
 
 # Ejecución Automática.
 
