@@ -74,7 +74,11 @@ Las funciones para crear, o modificar, configuraciones simplemente recogen los d
 
 # Ejecución Automática.
 
-El script incluye una lógica para gestionar de manera automática las copias de seguridad. Esta lógica incluye la ejecución del script con el nombre `autobackup.sh` de manera automática a través del archivo `.profile`.
+El script incluye una lógica para gestionar de manera automática las copias de seguridad. Esta lógica incluye la ejecución del script con el nombre `autobackup.sh` de manera automática a través del archivo `.profile`.  
+Se recorre el archivo de configuración y se realizan básicamente dos operaciones, calcular la diferencia de días entre la última copia y la fecha actual y contar cuantas copias almacenadas hay. Si los resultados concuerdan con las configuraciones se realizarán las operaciones pertinentes en cada caso.
+
+![image](https://github.com/abelgc84/backup.sh/assets/146434908/bf857e1c-e37b-4870-b2ce-ff7cd251f65c)
+
 
 # Conclusiones.
 
